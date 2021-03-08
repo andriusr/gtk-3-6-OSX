@@ -7636,7 +7636,10 @@ gtk_text_view_drag_data_received (GtkWidget        *widget,
   gtk_drag_finish (context, success,
 		   success && gdk_drag_context_get_selected_action (context) == GDK_ACTION_MOVE,
 		   time);
-
+  GtkWidget *source_widget = gtk_drag_get_source_widget (context);
+  if (success && gdk_drag_context_get_selected_action (context) == GDK_ACTION_MOVE && widget == source_widget) 
+		gtk_text_buffer_delete_selection (buffer,
+                                    TRUE, priv->editable);
   if (success)
     {
       gtk_text_buffer_get_iter_at_mark (buffer,
