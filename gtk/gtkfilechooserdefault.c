@@ -3676,7 +3676,7 @@ shortcuts_pane_create (GtkFileChooserDefault *impl,
   gtk_widget_show (toolbar);
 
   /* Add bookmark button */
-  icon = g_themed_icon_new_with_default_fallbacks ("list-add-symbolic");
+  icon = g_themed_icon_new_with_default_fallbacks ("list-add");
   impl->browse_shortcuts_add_button = toolbutton_new (impl,
                                                       icon,
                                                       FALSE,
@@ -3689,7 +3689,7 @@ shortcuts_pane_create (GtkFileChooserDefault *impl,
                                _("Add the selected folder to the Bookmarks"));
 
   /* Remove bookmark button */
-  icon = g_themed_icon_new_with_default_fallbacks ("list-remove-symbolic");
+  icon = g_themed_icon_new_with_default_fallbacks ("list-remove");
   impl->browse_shortcuts_remove_button = toolbutton_new (impl,
                                                          icon,
                                                          FALSE,
@@ -8199,7 +8199,7 @@ find_good_size_from_style (GtkWidget *widget,
     resolution = 96.0; /* wheeee */
 
   font_size = pango_font_description_get_size (gtk_style_context_get_font (context, state));
-  font_size = PANGO_PIXELS (font_size) * resolution / 72.0;
+  font_size = PANGO_PIXELS (font_size) * resolution / 96.0; /*use default resolution number here*/
 
   *width = font_size * NUM_CHARS;
   *height = font_size * NUM_LINES;
@@ -8238,14 +8238,14 @@ gtk_file_chooser_default_get_default_size (GtkFileChooserEmbed *chooser_embed,
 				     &req, NULL);
       *default_width += PREVIEW_HBOX_SPACING + req.width;
     }
-
-  if (impl->extra_widget &&
+/* It is not sane to extend height this way without check is total height will not exceed the total screen height, which will cause troubles with rendering*/
+/*  if (impl->extra_widget &&
       gtk_widget_get_visible (impl->extra_widget))
     {
       gtk_widget_get_preferred_size (impl->extra_align,
 				     &req, NULL);
       *default_height += gtk_box_get_spacing (GTK_BOX (chooser_embed)) + req.height;
-    }
+    } */
 }
 
 struct switch_folder_closure {
