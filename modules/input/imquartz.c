@@ -13,9 +13,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  *
  * $Id:$
  */
@@ -27,12 +25,19 @@
 #include "gtk/gtkintl.h"
 #include "gtk/gtkimmodule.h"
 
+#include <AvailabilityMacros.h>
 #include "gdk/quartz/gdkquartz.h"
 #include "gdk/quartz/GdkQuartzView.h"
 
 #define GTK_IM_CONTEXT_TYPE_QUARTZ (type_quartz)
 #define GTK_IM_CONTEXT_QUARTZ(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GTK_IM_CONTEXT_TYPE_QUARTZ, GtkIMContextQuartz))
 #define GTK_IM_CONTEXT_QUARTZ_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), GTK_IM_CONTEXT_TYPE_QUARTZ, GtkIMContextQuartzClass))
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 10120
+#define NS_EVENT_KEY_DOWN NSKeyDown
+#else
+#define NS_EVENT_KEY_DOWN NSEventTypeKeyDown
+#endif
 
 typedef struct _GtkIMContextQuartz
 {
@@ -131,16 +136,26 @@ output_result (GtkIMContext *context,
 {
   GtkIMContextQuartz *qc = GTK_IM_CONTEXT_QUARTZ (context);
   gboolean retval = FALSE;
+  int fixed_str_replace_len;
   gchar *fixed_str, *marked_str;
 
-  fixed_str = g_object_get_data (G_OBJECT (win), TIC_INSERT_TEXT);
-  marked_str = g_object_get_data (G_OBJECT (win), TIC_MARKED_TEXT);
+  fixed_str_replace_len = GPOINTER_TO_INT (g_object_get_data (G_OBJECT (win),
+      TIC_INSERT_TEXT_REPLACE_LEN));
+  fixed_str = g_strdup (g_object_get_data (G_OBJECT (win), TIC_INSERT_TEXT));
+  marked_str = g_strdup (g_object_get_data (G_OBJECT (win), TIC_MARKED_TEXT));
   if (fixed_str)
     {
       GTK_NOTE (MISC, g_print ("tic-insert-text: %s\n", fixed_str));
       g_free (qc->preedit_str);
       qc->preedit_str = NULL;
       g_object_set_data (G_OBJECT (win), TIC_INSERT_TEXT, NULL);
+      if (fixed_str_replace_len)
+        {
+          gboolean retval;
+          g_object_set_data (G_OBJECT (win), TIC_INSERT_TEXT_REPLACE_LEN, 0);
+          g_signal_emit_by_name (context, "delete-surrounding",
+              -fixed_str_replace_len, fixed_str_replace_len, &retval);
+        }
       g_signal_emit_by_name (context, "commit", fixed_str);
       g_signal_emit_by_name (context, "preedit_changed");
 
@@ -170,13 +185,16 @@ output_result (GtkIMContext *context,
     }
   if (!fixed_str && !marked_str)
     {
+      unsigned int filtered =
+	  GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (win),
+					       GIC_FILTER_KEY));
+      if (filtered)
+        retval = TRUE;
       if (qc->preedit_str && strlen (qc->preedit_str) > 0)
         retval = TRUE;
     }
-
   g_free (fixed_str);
   g_free (marked_str);
-
   return retval;
 }
 
@@ -191,17 +209,8 @@ quartz_filter_keypress (GtkIMContext *context,
 
   GTK_NOTE (MISC, g_print ("quartz_filter_keypress\n"));
 
-  if (!qc->client_window)
+  if (!GDK_IS_QUARTZ_WINDOW (qc->client_window))
     return FALSE;
-
-  nsview = gdk_quartz_window_get_nsview (qc->client_window);
-  if (GDK_IS_WINDOW (nsview))
-       /* it gets GDK_WINDOW in some cases */
-    return gtk_im_context_filter_keypress (qc->slave, event);
-  else
-    win = (GdkWindow *)[ (GdkQuartzView *)nsview gdkWindow];
-  GTK_NOTE (MISC, g_print ("client_window: %p, win: %p, nsview: %p\n",
-			   qc->client_window, win, nsview));
 
   NSEvent *nsevent = gdk_quartz_event_get_nsevent ((GdkEvent *)event);
 
@@ -209,10 +218,16 @@ quartz_filter_keypress (GtkIMContext *context,
     {
       if (event->hardware_keycode == 0 && event->keyval == 0xffffff)
         /* update text input changes by mouse events */
-        return output_result (context, win);
+        return output_result (context, event->window);
       else
         return gtk_im_context_filter_keypress (qc->slave, event);
     }
+
+  nsview = gdk_quartz_window_get_nsview (qc->client_window);
+
+  win = (GdkWindow *)[(GdkQuartzView *)[[nsevent window] contentView] gdkWindow];
+  GTK_NOTE (MISC, g_print ("client_window: %p, win: %p, nsview: %p\n",
+                           qc->client_window, win, nsview));
 
   if (event->type == GDK_KEY_RELEASE)
     return FALSE;
@@ -220,8 +235,11 @@ quartz_filter_keypress (GtkIMContext *context,
   if (event->hardware_keycode == 55)	/* Command */
     return FALSE;
 
+  if (event->hardware_keycode == 53) /* Escape */
+    return FALSE;
+
   NSEventType etype = [nsevent type];
-  if (etype == NSKeyDown)
+  if (etype == NS_EVENT_KEY_DOWN)
     {
        g_object_set_data (G_OBJECT (win), TIC_IN_KEY_DOWN,
                                           GUINT_TO_POINTER (TRUE));
@@ -247,18 +265,21 @@ discard_preedit (GtkIMContext *context)
   if (!qc->client_window)
     return;
 
+  if (!GDK_IS_QUARTZ_WINDOW (qc->client_window))
+    return;
+
   NSView *nsview = gdk_quartz_window_get_nsview (qc->client_window);
   if (!nsview)
     return;
 
-  if (GDK_IS_WINDOW (nsview))
-    return;
-
   /* reset any partial input for this NSView */
   [(GdkQuartzView *)nsview unmarkText];
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
   NSInputManager *currentInputManager = [NSInputManager currentInputManager];
   [currentInputManager markedTextAbandoned:nsview];
-
+#else
+  [[NSTextInputContext currentInputContext] discardMarkedText];
+#endif
   if (qc->preedit_str && strlen (qc->preedit_str) > 0)
     {
       g_signal_emit_by_name (context, "commit", qc->preedit_str);
@@ -333,11 +354,10 @@ quartz_set_cursor_location (GtkIMContext *context, GdkRectangle *area)
   qc->cursor_rect->x = area->x + x;
   qc->cursor_rect->y = area->y + y;
 
-  nsview = gdk_quartz_window_get_nsview (qc->client_window);
-  if (GDK_IS_WINDOW (nsview))
-    /* it returns GDK_WINDOW in some cases */
+  if (!GDK_IS_QUARTZ_WINDOW (qc->client_window))
     return;
 
+  nsview = gdk_quartz_window_get_nsview (qc->client_window);
   win = (GdkWindow *)[ (GdkQuartzView*)nsview gdkWindow];
   g_object_set_data (G_OBJECT (win), GIC_CURSOR_RECT, qc->cursor_rect);
 }
