@@ -1,0 +1,2 @@
+1. Build suceeds at this point, however, gtk3-demo has problems with scrolling. Mouse or touchpad scroll is not smooth (or it looks like there is no scroll) and view is not updated. Leaving the window, or slicking on it updates view.
+Decided to backport 3.14 gdk, that I confirmed, has no issues with scrolling.
