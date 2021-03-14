@@ -22,15 +22,16 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/.
  */
 
+#ifndef __GDK_COLOR_H__
+#define __GDK_COLOR_H__
+
 #if !defined (__GDK_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdk.h> can be included directly."
 #endif
 
-#ifndef __GDK_COLOR_H__
-#define __GDK_COLOR_H__
-
 #include <cairo.h>
 #include <gdk/gdktypes.h>
+#include <gdk/gdkversionmacros.h>
 
 G_BEGIN_DECLS
 
@@ -45,8 +46,10 @@ G_BEGIN_DECLS
  * @green: The green component of the color
  * @blue: The blue component of the color
  *
- * The #GdkColor structure is used to describe a color,
+ * A #GdkColor is used to describe a color,
  * similar to the XColor struct used in the X11 drawing API.
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 struct _GdkColor
 {
@@ -58,17 +61,24 @@ struct _GdkColor
 
 #define GDK_TYPE_COLOR (gdk_color_get_type ())
 
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_get_type)
 GType     gdk_color_get_type (void) G_GNUC_CONST;
 
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_copy)
 GdkColor *gdk_color_copy      (const GdkColor *color);
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_free)
 void      gdk_color_free      (GdkColor       *color);
 
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_hash)
 guint     gdk_color_hash      (const GdkColor *color);
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_equal)
 gboolean  gdk_color_equal     (const GdkColor *colora,
                                const GdkColor *colorb);
 
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_parse)
 gboolean  gdk_color_parse     (const gchar    *spec,
                                GdkColor       *color);
+GDK_DEPRECATED_IN_3_14_FOR(gdk_rgba_to_string)
 gchar *   gdk_color_to_string (const GdkColor *color);
 
 

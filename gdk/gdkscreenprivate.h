@@ -35,6 +35,7 @@ struct _GdkScreen
 
   cairo_font_options_t *font_options;
   gdouble resolution; /* pixels/points scale factor for fonts */
+  guint resolution_set : 1; /* resolution set through public API */
   guint closed : 1;
 };
 
@@ -91,7 +92,8 @@ struct _GdkScreenClass
   void         (* query_visual_types)    (GdkScreen   *screen,
                                           GdkVisualType **visual_types,
                                           gint           *count);
-
+  gint         (* get_monitor_scale_factor) (GdkScreen *screen,
+                                             gint       monitor_num);
 
   /* Signals: */
   void (*size_changed) (GdkScreen *screen);

@@ -17,12 +17,12 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __GDK_QUARTZ_WINDOW_H__
+#define __GDK_QUARTZ_WINDOW_H__
+
 #if !defined (__GDKQUARTZ_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkquartz.h> can be included directly."
 #endif
-
-#ifndef __GDK_QUARTZ_WINDOW_H__
-#define __GDK_QUARTZ_WINDOW_H__
 
 #include <gdk/gdk.h>
 
@@ -42,9 +42,12 @@ typedef GdkWindow GdkQuartzWindow;
 #endif
 typedef struct _GdkQuartzWindowClass GdkQuartzWindowClass;
 
+GDK_AVAILABLE_IN_ALL
 GType     gdk_quartz_window_get_type     (void);
 
+GDK_AVAILABLE_IN_ALL
 NSWindow *gdk_quartz_window_get_nswindow (GdkWindow *window);
+GDK_AVAILABLE_IN_ALL
 NSView   *gdk_quartz_window_get_nsview   (GdkWindow *window);
 
 G_END_DECLS

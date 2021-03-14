@@ -22,12 +22,12 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/. 
  */
 
+#ifndef __GDK_X11_WINDOW_H__
+#define __GDK_X11_WINDOW_H__
+
 #if !defined (__GDKX_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkx.h> can be included directly."
 #endif
-
-#ifndef __GDK_X11_WINDOW_H__
-#define __GDK_X11_WINDOW_H__
 
 #include <gdk/gdk.h>
 
@@ -50,21 +50,42 @@ typedef GdkWindow GdkX11Window;
 #endif
 typedef struct _GdkX11WindowClass GdkX11WindowClass;
 
+GDK_AVAILABLE_IN_ALL
 GType    gdk_x11_window_get_type          (void);
 
+GDK_AVAILABLE_IN_ALL
 Window   gdk_x11_window_get_xid           (GdkWindow   *window);
+GDK_AVAILABLE_IN_ALL
 void     gdk_x11_window_set_user_time     (GdkWindow   *window,
                                            guint32      timestamp);
+GDK_AVAILABLE_IN_3_4
 void     gdk_x11_window_set_utf8_property    (GdkWindow *window,
 					      const gchar *name,
 					      const gchar *value);
 GDK_AVAILABLE_IN_3_2
 void     gdk_x11_window_set_theme_variant (GdkWindow   *window,
                                            char        *variant);
+GDK_DEPRECATED_IN_3_12_FOR(gdk_window_set_shadow_width)
+void     gdk_x11_window_set_frame_extents (GdkWindow *window,
+                                           int        left,
+                                           int        right,
+                                           int        top,
+                                           int        bottom);
 GDK_AVAILABLE_IN_3_4
 void     gdk_x11_window_set_hide_titlebar_when_maximized (GdkWindow *window,
                                                           gboolean   hide_titlebar_when_maximized);
+GDK_AVAILABLE_IN_ALL
 void     gdk_x11_window_move_to_current_desktop (GdkWindow   *window);
+
+GDK_AVAILABLE_IN_3_10
+guint32  gdk_x11_window_get_desktop             (GdkWindow   *window);
+GDK_AVAILABLE_IN_3_10
+void     gdk_x11_window_move_to_desktop         (GdkWindow   *window,
+                                                 guint32      desktop);
+
+GDK_AVAILABLE_IN_3_8
+void     gdk_x11_window_set_frame_sync_enabled (GdkWindow *window,
+                                                gboolean   frame_sync_enabled);
 
 /**
  * GDK_WINDOW_XDISPLAY:
@@ -72,7 +93,7 @@ void     gdk_x11_window_move_to_current_desktop (GdkWindow   *window);
  *
  * Returns the display of a #GdkWindow.
  *
- * Returns: an Xlib <type>Display*</type>.
+ * Returns: an Xlib Display*.
  */
 #define GDK_WINDOW_XDISPLAY(win)      (GDK_DISPLAY_XDISPLAY (gdk_window_get_display (win)))
 
@@ -82,14 +103,17 @@ void     gdk_x11_window_move_to_current_desktop (GdkWindow   *window);
  *
  * Returns the X window belonging to a #GdkWindow.
  *
- * Returns: the Xlib <type>Window</type> of @win.
+ * Returns: the Xlib Window of @win.
  */
 #define GDK_WINDOW_XID(win)           (gdk_x11_window_get_xid (win))
 
+GDK_AVAILABLE_IN_ALL
 guint32       gdk_x11_get_server_time  (GdkWindow       *window);
 
+GDK_AVAILABLE_IN_ALL
 GdkWindow  *gdk_x11_window_foreign_new_for_display (GdkDisplay *display,
                                                     Window      window);
+GDK_AVAILABLE_IN_ALL
 GdkWindow  *gdk_x11_window_lookup_for_display      (GdkDisplay *display,
                                                     Window      window);
 

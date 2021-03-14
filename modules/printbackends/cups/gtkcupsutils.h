@@ -178,13 +178,17 @@ gboolean                gtk_cups_request_is_done           (GtkCupsRequest     *
 void                    gtk_cups_request_encode_option     (GtkCupsRequest     *request,
 						            const gchar        *option,
 							    const gchar        *value);
+void                    gtk_cups_request_set_ipp_version   (GtkCupsRequest     *request,
+							    gint                major,
+							    gint                minor);
 gboolean                gtk_cups_result_is_error           (GtkCupsResult      *result);
 ipp_t                 * gtk_cups_result_get_response       (GtkCupsResult      *result);
 GtkCupsErrorType        gtk_cups_result_get_error_type     (GtkCupsResult      *result);
 int                     gtk_cups_result_get_error_status   (GtkCupsResult      *result);
 int                     gtk_cups_result_get_error_code     (GtkCupsResult      *result);
 const char            * gtk_cups_result_get_error_string   (GtkCupsResult      *result);
-GtkCupsConnectionTest * gtk_cups_connection_test_new       (const char            *server);
+GtkCupsConnectionTest * gtk_cups_connection_test_new       (const char         *server,
+                                                            const int           port);
 GtkCupsConnectionState  gtk_cups_connection_test_get_state (GtkCupsConnectionTest *test);
 void                    gtk_cups_connection_test_free      (GtkCupsConnectionTest *test);
 

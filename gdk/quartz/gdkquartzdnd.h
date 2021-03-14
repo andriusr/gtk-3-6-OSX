@@ -16,12 +16,12 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __GDK_QUARTZ_DND_H__
+#define __GDK_QUARTZ_DND_H__
+
 #if !defined(__GDKQUARTZ_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkquartz.h> can be included directly."
 #endif
-
-#ifndef __GDK_QUARTZ_DND_H__
-#define __GDK_QUARTZ_DND_H__
 
 #include <gdk/gdk.h>
 
@@ -42,8 +42,10 @@ typedef GdkDragContext GdkQuartzDragContext;
 typedef struct _GdkQuartzDragContextClass GdkQuartzDragContextClass;
 
 
+GDK_AVAILABLE_IN_ALL
 GType     gdk_quartz_drag_context_get_type (void);
 
+GDK_AVAILABLE_IN_ALL
 id        gdk_quartz_drag_context_get_dragging_info_libgtk_only (GdkDragContext *context);
 
 G_END_DECLS

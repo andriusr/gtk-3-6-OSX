@@ -171,7 +171,11 @@ send_event_handler (Display *dpy,
 	}
 
       if (state->callback)
-        gdk_threads_add_idle (callback_idle, state);
+        {
+          guint id;
+          id = gdk_threads_add_idle (callback_idle, state);
+          g_source_set_name_by_id (id, "[gtk+] callback_idle");
+        }
 
       DeqAsyncHandler(state->dpy, &state->async);
 
@@ -472,7 +476,7 @@ get_child_info_handler (Display *dpy,
   if (rep->generic.type == X_Error)
     {
       state->child_has_error = TRUE;
-      if (rep->error.errorCode != BadDrawable ||
+      if (rep->error.errorCode != BadDrawable &&
 	  rep->error.errorCode != BadWindow)
 	{
 	  state->have_error = TRUE;
@@ -701,7 +705,11 @@ roundtrip_handler (Display *dpy,
 
       
       if (state->callback)
-        gdk_threads_add_idle (roundtrip_callback_idle, state);
+        {
+          guint id;
+          id = gdk_threads_add_idle (roundtrip_callback_idle, state);
+          g_source_set_name_by_id (id, "[gtk+] roundtrip_callback_idle");
+        }
 
       DeqAsyncHandler(state->dpy, &state->async);
 

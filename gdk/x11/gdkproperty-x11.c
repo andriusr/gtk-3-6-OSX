@@ -38,44 +38,6 @@
 #include <string.h>
 
 
-/**
- * SECTION:properties
- * @Short_description: Functions to manipulate properties on windows
- * @Title: Properties and Atoms
- *
- * Each window under X can have any number of associated
- * <firstterm>properties</firstterm> attached to it.
- * Properties are arbitrary chunks of data identified by
- * <firstterm>atom</firstterm>s. (An <firstterm>atom</firstterm>
- * is a numeric index into a string table on the X server. They are used
- * to transfer strings efficiently between clients without
- * having to transfer the entire string.) A property
- * has an associated type, which is also identified
- * using an atom.
- *
- * A property has an associated <firstterm>format</firstterm>,
- * an integer describing how many bits are in each unit
- * of data inside the property. It must be 8, 16, or 32.
- * When data is transferred between the server and client,
- * if they are of different endianesses it will be byteswapped
- * as necessary according to the format of the property.
- * Note that on the client side, properties of format 32
- * will be stored with one unit per <emphasis>long</emphasis>,
- * even if a long integer has more than 32 bits on the platform.
- * (This decision was apparently made for Xlib to maintain
- * compatibility with programs that assumed longs were 32
- * bits, at the expense of programs that knew better.)
- *
- * The functions in this section are used to add, remove
- * and change properties on windows, to convert atoms
- * to and from strings and to manipulate some types of
- * data commonly stored in X window properties.
- */
-
-
-static GPtrArray *virtual_atom_array;
-static GHashTable *virtual_atom_hash;
-
 static const gchar xatoms_string[] = 
   /* These are all the standard predefined X atoms */
   "\0"  /* leave a space for None, even though it is not a predefined atom */
@@ -206,14 +168,14 @@ lookup_cached_xatom (GdkDisplay *display,
 
 /**
  * gdk_x11_atom_to_xatom_for_display:
- * @display: A #GdkDisplay
+ * @display: (type GdkX11Display): A #GdkDisplay
  * @atom: A #GdkAtom, or %GDK_NONE
  *
  * Converts from a #GdkAtom to the X atom for a #GdkDisplay
  * with the same string value. The special value %GDK_NONE
  * is converted to %None.
  *
- * Return value: the X atom corresponding to @atom, or %None
+ * Returns: the X atom corresponding to @atom, or %None
  *
  * Since: 2.2
  **/
@@ -235,14 +197,12 @@ gdk_x11_atom_to_xatom_for_display (GdkDisplay *display,
 
   if (!xatom)
     {
-      char *name;
-
-      g_return_val_if_fail (ATOM_TO_INDEX (atom) < virtual_atom_array->len, None);
-
-      name = g_ptr_array_index (virtual_atom_array, ATOM_TO_INDEX (atom));
+      char *name = gdk_atom_name (atom);
 
       xatom = XInternAtom (GDK_DISPLAY_XDISPLAY (display), name, FALSE);
       insert_atom_pair (display, atom, xatom);
+
+      g_free (name);
     }
 
   return xatom;
@@ -294,7 +254,7 @@ _gdk_x11_precache_atoms (GdkDisplay          *display,
  * Converts from a #GdkAtom to the X atom for the default GDK display
  * with the same string value.
  * 
- * Return value: the X atom corresponding to @atom.
+ * Returns: the X atom corresponding to @atom.
  **/
 Atom
 gdk_x11_atom_to_xatom (GdkAtom atom)
@@ -304,13 +264,13 @@ gdk_x11_atom_to_xatom (GdkAtom atom)
 
 /**
  * gdk_x11_xatom_to_atom_for_display:
- * @display: A #GdkDisplay
+ * @display: (type GdkX11Display): A #GdkDisplay
  * @xatom: an X atom 
  * 
  * Convert from an X atom for a #GdkDisplay to the corresponding
  * #GdkAtom.
  * 
- * Return value: (transfer none): the corresponding #GdkAtom.
+ * Returns: (transfer none): the corresponding #GdkAtom.
  *
  * Since: 2.2
  **/
@@ -369,7 +329,7 @@ gdk_x11_xatom_to_atom_for_display (GdkDisplay *display,
  * Convert from an X atom for the default display to the corresponding
  * #GdkAtom.
  * 
- * Return value: (transfer none): the corresponding G#dkAtom.
+ * Returns: (transfer none): the corresponding G#dkAtom.
  **/
 GdkAtom
 gdk_x11_xatom_to_atom (Atom xatom)
@@ -377,78 +337,16 @@ gdk_x11_xatom_to_atom (Atom xatom)
   return gdk_x11_xatom_to_atom_for_display (gdk_display_get_default (), xatom);
 }
 
-static void
-virtual_atom_check_init (void)
-{
-  if (!virtual_atom_hash)
-    {
-      gint i;
-
-      virtual_atom_hash = g_hash_table_new (g_str_hash, g_str_equal);
-      virtual_atom_array = g_ptr_array_new ();
-
-      for (i = 0; i < G_N_ELEMENTS (xatoms_offset); i++)
-        {
-          g_ptr_array_add (virtual_atom_array, (gchar *)(xatoms_string + xatoms_offset[i]));
-          g_hash_table_insert (virtual_atom_hash, (gchar *)(xatoms_string + xatoms_offset[i]),
-                               GUINT_TO_POINTER (i));
-        }
-    }
-}
-
-GdkAtom
-_gdk_x11_display_manager_atom_intern (GdkDisplayManager *manager,
-                                      const gchar       *atom_name,
-                                      gboolean           dup)
-{
-  GdkAtom result;
-
-  virtual_atom_check_init ();
-
-  result = GDK_POINTER_TO_ATOM (g_hash_table_lookup (virtual_atom_hash, atom_name));
-  if (!result)
-    {
-      result = INDEX_TO_ATOM (virtual_atom_array->len);
-
-      g_ptr_array_add (virtual_atom_array, dup ? g_strdup (atom_name) : (gchar *)atom_name);
-      g_hash_table_insert (virtual_atom_hash,
-                           g_ptr_array_index (virtual_atom_array,
-                                              ATOM_TO_INDEX (result)),
-                                              GDK_ATOM_TO_POINTER (result));
-    }
-
-  return result;
-}
-
-static const gchar *
-get_atom_name (GdkAtom atom)
-{
-  virtual_atom_check_init ();
-
-  if (ATOM_TO_INDEX (atom) < virtual_atom_array->len)
-    return g_ptr_array_index (virtual_atom_array, ATOM_TO_INDEX (atom));
-  else
-    return NULL;
-}
-
-
-gchar *
-_gdk_x11_display_manager_get_atom_name (GdkDisplayManager *manager,
-                                        GdkAtom            atom)
-{
-  return g_strdup (get_atom_name (atom));
-}
-
 /**
  * gdk_x11_get_xatom_by_name_for_display:
- * @display: a #GdkDisplay
+ * @display: (type GdkX11Display): a #GdkDisplay
  * @atom_name: a string
  * 
  * Returns the X atom for a #GdkDisplay corresponding to @atom_name.
  * This function caches the result, so if called repeatedly it is much
  * faster than XInternAtom(), which is a round trip to the server each time.
  * 
- * Return value: a X atom for a #GdkDisplay
+ * Returns: a X atom for a #GdkDisplay
  *
  * Since: 2.2
  **/
@@ -461,15 +359,35 @@ gdk_x11_get_xatom_by_name_for_display (GdkDisplay  *display,
 					    gdk_atom_intern (atom_name, FALSE));
 }
 
+Atom
+_gdk_x11_get_xatom_for_display_printf (GdkDisplay    *display,
+                                       const gchar   *format,
+                                       ...)
+{
+  va_list args;
+  char *atom_name;
+  Atom atom;
+
+  va_start (args, format);
+  atom_name = g_strdup_vprintf (format, args);
+  va_end (args);
+
+  atom = gdk_x11_get_xatom_by_name_for_display (display, atom_name);
+
+  g_free (atom_name);
+
+  return atom;
+}
+
 /**
  * gdk_x11_get_xatom_by_name:
  * @atom_name: a string
  * 
- * Returns the X atom for GDK's default display corresponding to @atom_name.
+ * Returns the X atom for GDK’s default display corresponding to @atom_name.
  * This function caches the result, so if called repeatedly it is much
  * faster than XInternAtom(), which is a round trip to the server each time.
  * 
- * Return value: a X atom for GDK's default display.
+ * Returns: a X atom for GDK’s default display.
  **/
 Atom
 gdk_x11_get_xatom_by_name (const gchar *atom_name)
@@ -480,16 +398,16 @@ gdk_x11_get_xatom_by_name (const gchar *atom_name)
 
 /**
  * gdk_x11_get_xatom_name_for_display:
- * @display: the #GdkDisplay where @xatom is defined
+ * @display: (type GdkX11Display): the #GdkDisplay where @xatom is defined
  * @xatom: an X atom 
  * 
  * Returns the name of an X atom for its display. This
  * function is meant mainly for debugging, so for convenience, unlike
- * XAtomName() and gdk_atom_name(), the result doesn't need to
+ * XAtomName() and gdk_atom_name(), the result doesn’t need to
  * be freed. 
  *
- * Return value: name of the X atom; this string is owned by GDK,
- *   so it shouldn't be modifed or freed. 
+ * Returns: name of the X atom; this string is owned by GDK,
+ *   so it shouldn’t be modifed or freed. 
  *
  * Since: 2.2
  **/
@@ -499,26 +417,26 @@ gdk_x11_get_xatom_name_for_display (GdkDisplay *display,
 {
   g_return_val_if_fail (GDK_IS_DISPLAY (display), NULL);
 
-  return get_atom_name (gdk_x11_xatom_to_atom_for_display (display, xatom));
+  return _gdk_atom_name_const (gdk_x11_xatom_to_atom_for_display (display, xatom));
 }
 
 /**
  * gdk_x11_get_xatom_name:
- * @xatom: an X atom for GDK's default display
+ * @xatom: an X atom for GDK’s default display
  * 
- * Returns the name of an X atom for GDK's default display. This
+ * Returns the name of an X atom for GDK’s default display. This
  * function is meant mainly for debugging, so for convenience, unlike
- * <function>XAtomName()</function> and gdk_atom_name(), the result 
- * doesn't need to be freed. Also, this function will never return %NULL, 
+ * XAtomName() and gdk_atom_name(), the result 
+ * doesn’t need to be freed. Also, this function will never return %NULL, 
  * even if @xatom is invalid.
  * 
- * Return value: name of the X atom; this string is owned by GTK+,
- *   so it shouldn't be modifed or freed. 
+ * Returns: name of the X atom; this string is owned by GTK+,
+ *   so it shouldn’t be modifed or freed. 
  **/
 const gchar *
 gdk_x11_get_xatom_name (Atom xatom)
 {
-  return get_atom_name (gdk_x11_xatom_to_atom (xatom));
+  return _gdk_atom_name_const (gdk_x11_xatom_to_atom (xatom));
 }
 
 gboolean
@@ -551,8 +469,6 @@ _gdk_x11_window_get_property (GdkWindow   *window,
     {
       GdkScreen *screen = gdk_screen_get_default ();
       window = gdk_screen_get_root_window (screen);
-      
-      GDK_NOTE (MULTIHEAD, g_message ("gdk_property_get(): window is NULL\n"));
     }
   else if (!GDK_WINDOW_IS_X11 (window))
     return FALSE;
@@ -689,8 +605,6 @@ _gdk_x11_window_change_property (GdkWindow    *window,
       
       screen = gdk_screen_get_default ();
       window = gdk_screen_get_root_window (screen);
-      
-      GDK_NOTE (MULTIHEAD, g_message ("gdk_property_change(): window is NULL\n"));
     }
   else if (!GDK_WINDOW_IS_X11 (window))
     return;
@@ -740,9 +654,6 @@ _gdk_x11_window_delete_property (GdkWindow *window,
     {
       GdkScreen *screen = gdk_screen_get_default ();
       window = gdk_screen_get_root_window (screen);
-      
-      GDK_NOTE (MULTIHEAD, 
-		g_message ("gdk_property_delete(): window is NULL\n"));
     }
   else if (!GDK_WINDOW_IS_X11 (window))
     return;

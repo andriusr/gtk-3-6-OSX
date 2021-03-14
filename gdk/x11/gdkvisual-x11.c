@@ -88,11 +88,27 @@ gdk_x11_visual_finalize (GObject *object)
 }
 
 static void
+gdk_x11_visual_dispose (GObject *object)
+{
+  GdkVisual *visual = (GdkVisual *)object;
+  GdkX11Visual *x11_visual = (GdkX11Visual *)object;
+
+  if (x11_visual->colormap != None)
+    {
+      XFreeColormap (GDK_SCREEN_XDISPLAY (visual->screen), x11_visual->colormap);
+      x11_visual->colormap = None;
+    }
+
+  G_OBJECT_CLASS (gdk_x11_visual_parent_class)->dispose (object);
+}
+
+static void
 gdk_x11_visual_class_init (GdkX11VisualClass *class)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (class);
 
   object_class->finalize = gdk_x11_visual_finalize;
+  object_class->dispose = gdk_x11_visual_dispose;
 }
 
 void
@@ -460,8 +476,8 @@ _gdk_x11_screen_list_visuals (GdkScreen *screen)
  *
  * Looks up the #GdkVisual for a particular screen and X Visual ID.
  *
- * Returns: (transfer none): the #GdkVisual (owned by the screen
- *   object), or %NULL if the visual ID wasn't found.
+ * Returns: (transfer none) (type GdkX11Visual): the #GdkVisual (owned by the screen
+ *   object), or %NULL if the visual ID wasn’t found.
  *
  * Since: 2.2
  */
@@ -563,11 +579,11 @@ _gdk_visual_get_x11_colormap (GdkVisual *visual)
 
 /**
  * gdk_x11_visual_get_xvisual:
- * @visual: a #GdkVisual.
+ * @visual: (type GdkX11Visual): a #GdkVisual.
  *
  * Returns the X visual belonging to a #GdkVisual.
  *
- * Return value: (transfer none): an Xlib <type>Visual*</type>.
+ * Returns: (transfer none): an Xlib Visual*.
  **/
 Visual *
 gdk_x11_visual_get_xvisual (GdkVisual *visual)

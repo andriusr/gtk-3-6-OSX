@@ -33,12 +33,6 @@
 #undef HAVE_MONITOR_INFO
 #endif
 
-void
-_gdk_windowing_set_default_display (GdkDisplay *display)
-{
-  g_assert (display == NULL || _gdk_display == display);
-}
-
 static gulong
 gdk_win32_display_get_next_serial (GdkDisplay *display)
 {
@@ -89,7 +83,7 @@ enum_monitor (HMONITOR hmonitor,
 
   monitor = _gdk_monitors + *index;
 
-  monitor_info.cbSize = sizeof (MONITORINFOEX);
+  monitor_info.cbSize = sizeof (MONITORINFOEXA2);
   GetMonitorInfoA (hmonitor, (MONITORINFO *) &monitor_info);
 
 #ifndef MONITORINFOF_PRIMARY
@@ -206,7 +200,7 @@ _gdk_win32_display_open (const gchar *display_name)
   _gdk_screen = g_object_new (GDK_TYPE_WIN32_SCREEN, NULL);
 
   _gdk_monitor_init ();
-  _gdk_visual_init ();
+  _gdk_visual_init (_gdk_screen);
   _gdk_windowing_window_init (_gdk_screen);
   _gdk_events_init ();
   _gdk_input_init (_gdk_display);
@@ -215,8 +209,7 @@ _gdk_win32_display_open (const gchar *display_name)
   /* Precalculate display name */
   (void) gdk_display_get_name (_gdk_display);
 
-  g_signal_emit_by_name (gdk_display_manager_get (),
-			 "display_opened", _gdk_display);
+  g_signal_emit_by_name (_gdk_display, "opened");
 
   GDK_NOTE (MISC, g_print ("... _gdk_display now set up\n"));
 
@@ -297,24 +290,6 @@ gdk_win32_display_get_name (GdkDisplay *display)
   display_name_cache = display_name;
 
   return display_name_cache;
-}
-
-static gint
-gdk_win32_display_get_n_screens (GdkDisplay *display)
-{
-  g_return_val_if_fail (GDK_IS_DISPLAY (display), 0);
-
-  return 1;
-}
-
-static GdkScreen *
-gdk_win32_display_get_screen (GdkDisplay *display,
-			      gint        screen_num)
-{
-  g_return_val_if_fail (GDK_IS_DISPLAY (display), NULL);
-  g_return_val_if_fail (screen_num == 0, NULL);
-
-  return _gdk_screen;
 }
 
 static GdkScreen *
@@ -449,7 +424,7 @@ _clipboard_window_procedure (HWND   hwnd,
   retval = inner_clipboard_window_procedure (hwnd, message, wparam, lparam);
   debug_indent -= 2;
 
-  GDK_NOTE (EVENTS, g_print (" => %I64d%s", (gint64) retval, (debug_indent == 0 ? "\n" : "")));
+  GDK_NOTE (EVENTS, g_print (" => %" G_GINT64_FORMAT "%s", (gint64) retval, (debug_indent == 0 ? "\n" : "")));
 
   return retval;
 }
@@ -558,11 +533,8 @@ gdk_win32_display_supports_input_shapes (GdkDisplay *display)
 {
   g_return_val_if_fail (GDK_IS_DISPLAY (display), FALSE);
 
-  /* Not yet implemented. See comment in
-   * gdk_window_input_shape_combine_mask().
-   */
-
-  return FALSE;
+  /* Partially supported, see WM_NCHITTEST handler. */
+  return TRUE;
 }
 
 static gboolean
@@ -663,8 +635,6 @@ gdk_win32_display_class_init (GdkWin32DisplayClass *klass)
   display_class->window_type = GDK_TYPE_WIN32_WINDOW;
 
   display_class->get_name = gdk_win32_display_get_name;
-  display_class->get_n_screens = gdk_win32_display_get_n_screens;
-  display_class->get_screen = gdk_win32_display_get_screen;
   display_class->get_default_screen = gdk_win32_display_get_default_screen;
   display_class->beep = gdk_win32_display_beep;
   display_class->sync = gdk_win32_display_sync;
@@ -685,7 +655,7 @@ gdk_win32_display_class_init (GdkWin32DisplayClass *klass)
   //? display_class->get_app_launch_context = _gdk_win32_display_get_app_launch_context;
   display_class->get_cursor_for_type = _gdk_win32_display_get_cursor_for_type;
   display_class->get_cursor_for_name = _gdk_win32_display_get_cursor_for_name;
-  display_class->get_cursor_for_pixbuf = _gdk_win32_display_get_cursor_for_pixbuf;
+  display_class->get_cursor_for_surface = _gdk_win32_display_get_cursor_for_surface;
   display_class->get_default_cursor_size = _gdk_win32_display_get_default_cursor_size;
   display_class->get_maximal_cursor_size = _gdk_win32_display_get_maximal_cursor_size;
   display_class->supports_cursor_alpha = _gdk_win32_display_supports_cursor_alpha;
@@ -709,4 +679,6 @@ gdk_win32_display_class_init (GdkWin32DisplayClass *klass)
   display_class->convert_selection = _gdk_win32_display_convert_selection;
   display_class->text_property_to_utf8_list = _gdk_win32_display_text_property_to_utf8_list;
   display_class->utf8_to_string_target = _gdk_win32_display_utf8_to_string_target;
+  
+  _gdk_win32_windowing_init ();
 }

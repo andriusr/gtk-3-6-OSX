@@ -24,7 +24,6 @@
 
 #include "gdkpixbuf.h"
 
-#include "gdkcolor.h"
 #include "gdkwindow.h"
 #include "gdkinternals.h"
 
@@ -64,21 +63,21 @@
  * obscured/offscreen regions to be placed in the pixbuf. The contents of
  * portions of the pixbuf corresponding to the offscreen region are undefined.
  *
- * If the window you're obtaining data from is partially obscured by
+ * If the window you’re obtaining data from is partially obscured by
  * other windows, then the contents of the pixbuf areas corresponding
  * to the obscured regions are undefined.
  *
- * If the window is not mapped (typically because it's iconified/minimized
+ * If the window is not mapped (typically because it’s iconified/minimized
  * or not on the current workspace), then %NULL will be returned.
  *
- * If memory can't be allocated for the return value, %NULL will be returned
+ * If memory can’t be allocated for the return value, %NULL will be returned
  * instead.
  *
  * (In short, there are several ways this function can fail, and if it fails
  *  it returns %NULL; so check the return value.)
  *
- * Return value: (transfer full): A newly-created pixbuf with a reference
- *     count of 1, or %NULL on error
+ * Returns: (nullable) (transfer full): A newly-created pixbuf with a
+ *     reference count of 1, or %NULL on error
  */
 GdkPixbuf *
 gdk_pixbuf_get_from_window (GdkWindow *src,
@@ -225,8 +224,8 @@ convert_no_alpha (guchar *dest_data,
  * This function will create an RGB pixbuf with 8 bits per channel.
  * The pixbuf will contain an alpha channel if the @surface contains one.
  *
- * Return value: (transfer full): A newly-created pixbuf with a reference
- *     count of 1, or %NULL on error
+ * Returns: (nullable) (transfer full): A newly-created pixbuf with a
+ *     reference count of 1, or %NULL on error
  */
 GdkPixbuf *
 gdk_pixbuf_get_from_surface  (cairo_surface_t *surface,
@@ -248,9 +247,17 @@ gdk_pixbuf_get_from_surface  (cairo_surface_t *surface,
                          8,
                          width, height);
 
-  surface = gdk_cairo_surface_coerce_to_image (surface, content,
-                                               src_x, src_y,
-                                               width, height);
+  if (cairo_surface_get_type (surface) == CAIRO_SURFACE_TYPE_IMAGE &&
+      cairo_image_surface_get_format (surface) == gdk_cairo_format_for_content (content))
+    surface = cairo_surface_reference (surface);
+  else
+    {
+      surface = gdk_cairo_surface_coerce_to_image (surface, content,
+						   src_x, src_y,
+						   width, height);
+      src_x = 0;
+      src_y = 0;
+    }
   cairo_surface_flush (surface);
   if (cairo_surface_status (surface) || dest == NULL)
     {
@@ -263,14 +270,14 @@ gdk_pixbuf_get_from_surface  (cairo_surface_t *surface,
                    gdk_pixbuf_get_rowstride (dest),
                    cairo_image_surface_get_data (surface),
                    cairo_image_surface_get_stride (surface),
-                   0, 0,
+                   src_x, src_y,
                    width, height);
   else
     convert_no_alpha (gdk_pixbuf_get_pixels (dest),
                       gdk_pixbuf_get_rowstride (dest),
                       cairo_image_surface_get_data (surface),
                       cairo_image_surface_get_stride (surface),
-                      0, 0,
+                      src_x, src_y,
                       width, height);
 
   cairo_surface_destroy (surface);

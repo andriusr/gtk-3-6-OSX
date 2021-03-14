@@ -38,8 +38,7 @@ struct _GdkX11Display
 {
   GdkDisplay parent_instance;
   Display *xdisplay;
-  GdkScreen *default_screen;
-  GdkScreen **screens;
+  GdkScreen *screen;
 
   GSource *event_source;
 
@@ -77,12 +76,6 @@ struct _GdkX11Display
 
   /* drag and drop information */
   GdkDragContext *current_dest_drag;
-
-  /* data needed for MOTIF DnD */
-  Window motif_drag_window;
-  GdkWindow *motif_drag_gdk_window;
-  GList **motif_target_lists;
-  gint motif_n_target_lists;
 
   /* Mapping to/from virtual atoms */
   GHashTable *atom_from_virtual;
@@ -131,6 +124,12 @@ struct _GdkX11Display
   GSList *error_traps;
 
   gint wm_moveresize_button;
+
+  /* Translation between X server time and system-local monotonic time */
+  gint64 server_time_query_time;
+  gint64 server_time_offset;
+
+  guint server_time_is_monotonic_time : 1;
 };
 
 struct _GdkX11DisplayClass

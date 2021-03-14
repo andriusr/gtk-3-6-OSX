@@ -20,6 +20,8 @@
 #include "gdkinternals.h"
 #include "gdkprivate-wayland.h"
 
+#include <errno.h>
+
 typedef struct _GdkWaylandEventSource {
   GSource source;
   GPollFD pfd;
@@ -37,6 +39,9 @@ gdk_event_source_prepare(GSource *base, gint *timeout)
 
   *timeout = -1;
 
+  if (source->display->event_pause_count > 0)
+    return _gdk_event_queue_find_first (source->display) != NULL;
+
   /* We have to add/remove the GPollFD if we want to update our
    * poll event mask dynamically.  Instead, let's just flush all
    * write on idle instead, which is what this amounts to. */
@@ -44,7 +49,11 @@ gdk_event_source_prepare(GSource *base, gint *timeout)
   if (_gdk_event_queue_find_first (source->display) != NULL)
     return TRUE;
 
-  wl_display_flush(display->wl_display);
+  if (wl_display_flush (display->wl_display) < 0)
+    g_error ("Error flushing display: %s", g_strerror (errno));
+
+  if (wl_display_dispatch_pending (display->wl_display) < 0)
+    g_error ("Error dispatching display: %s", g_strerror (errno));
 
   return FALSE;
 }
@@ -53,6 +62,9 @@ static gboolean
 gdk_event_source_check(GSource *base)
 {
   GdkWaylandEventSource *source = (GdkWaylandEventSource *) base;
+
+  if (source->display->event_pause_count > 0)
+    return _gdk_event_queue_find_first (source->display) != NULL;
 
   return _gdk_event_queue_find_first (source->display) != NULL ||
     source->pfd.revents;
@@ -124,7 +136,7 @@ _gdk_wayland_display_event_source_new (GdkDisplay *display)
   display_wayland = GDK_WAYLAND_DISPLAY (display);
   wl_source->display = display;
   wl_source->pfd.fd = wl_display_get_fd(display_wayland->wl_display);
-  wl_source->pfd.events = G_IO_IN | G_IO_ERR;
+  wl_source->pfd.events = G_IO_IN | G_IO_ERR | G_IO_HUP;
   g_source_add_poll(source, &wl_source->pfd);
 
   g_source_set_priority (source, GDK_PRIORITY_EVENTS);
@@ -144,9 +156,15 @@ _gdk_wayland_display_queue_events (GdkDisplay *display)
 
   display_wayland = GDK_WAYLAND_DISPLAY (display);
   source = (GdkWaylandEventSource *) display_wayland->event_source;
-  if (source->pfd.revents)
+
+  if (source->pfd.revents & G_IO_IN)
     {
-	wl_display_dispatch(display_wayland->wl_display);
-	source->pfd.revents = 0;
+      if (wl_display_dispatch (display_wayland->wl_display) < 0)
+        g_error ("Error dispatching display: %s", g_strerror (errno));
     }
+
+  if (source->pfd.revents & (G_IO_ERR | G_IO_HUP))
+    g_error ("Lost connection to wayland compositor");
+
+  source->pfd.revents = 0;
 }

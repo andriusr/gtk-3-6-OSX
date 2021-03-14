@@ -31,6 +31,8 @@
 
 #include <time.h>
 
+G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+
 /**
  * SECTION:colors
  * @Short_description: Manipulation of colors
@@ -39,7 +41,8 @@
  * A #GdkColor represents a color.
  *
  * When working with cairo, it is often more convenient
- * to use a #GdkRGBA instead.
+ * to use a #GdkRGBA instead, and #GdkColor has been
+ * deprecated in favor of #GdkRGBA.
  */
 
 
@@ -47,11 +50,13 @@
  * gdk_color_copy:
  * @color: a #GdkColor
  *
- * Makes a copy of a color structure.
+ * Makes a copy of a #GdkColor.
  *
  * The result must be freed using gdk_color_free().
  *
- * Return value: a copy of @color
+ * Returns: a copy of @color
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 GdkColor*
 gdk_color_copy (const GdkColor *color)
@@ -69,7 +74,9 @@ gdk_color_copy (const GdkColor *color)
  * gdk_color_free:
  * @color: a #GdkColor
  *
- * Frees a color structure created with gdk_color_copy().
+ * Frees a #GdkColor created with gdk_color_copy().
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 void
 gdk_color_free (GdkColor *color)
@@ -86,7 +93,9 @@ gdk_color_free (GdkColor *color)
  * A hash function suitable for using for a hash
  * table that stores #GdkColors.
  *
- * Return value: The hash function applied to @color
+ * Returns: The hash function applied to @color
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 guint
 gdk_color_hash (const GdkColor *color)
@@ -104,7 +113,9 @@ gdk_color_hash (const GdkColor *color)
  *
  * Compares two colors.
  *
- * Return value: %TRUE if the two colors compare equal
+ * Returns: %TRUE if the two colors compare equal
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 gboolean
 gdk_color_equal (const GdkColor *colora,
@@ -128,20 +139,19 @@ G_DEFINE_BOXED_TYPE (GdkColor, gdk_color,
  * @color: (out): the #GdkColor to fill in
  *
  * Parses a textual specification of a color and fill in the
- * <structfield>red</structfield>, <structfield>green</structfield>,
- * and <structfield>blue</structfield> fields of a #GdkColor
- * structure.
+ * @red, @green, and @blue fields of a #GdkColor.
  *
  * The string can either one of a large set of standard names
- * (taken from the X11 <filename>rgb.txt</filename> file), or
- * it can be a hex value in the form '&num;rgb' '&num;rrggbb'
- * '&num;rrrgggbbb' or '&num;rrrrggggbbbb' where 'r', 'g' and
- * 'b' are hex digits of the red, green, and blue components
- * of the color, respectively. (White in the four forms is
- * '&num;fff', '&num;ffffff', '&num;fffffffff' and
- * '&num;ffffffffffff').
+ * (taken from the X11 `rgb.txt` file), or it can be a hexadecimal
+ * value in the form “\#rgb” “\#rrggbb”, “\#rrrgggbbb” or
+ * “\#rrrrggggbbbb” where “r”, “g” and “b” are hex digits of
+ * the red, green, and blue components of the color, respectively.
+ * (White in the four forms is “\#fff”, “\#ffffff”, “\#fffffffff”
+ * and “\#ffffffffffff”).
  *
- * Return value: %TRUE if the parsing succeeded
+ * Returns: %TRUE if the parsing succeeded
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 gboolean
 gdk_color_parse (const gchar *spec,
@@ -165,16 +175,17 @@ gdk_color_parse (const gchar *spec,
  * gdk_color_to_string:
  * @color: a #GdkColor
  *
- * Returns a textual specification of @color in the hexadecimal form
- * <literal>&num;rrrrggggbbbb</literal>, where <literal>r</literal>,
- * <literal>g</literal> and <literal>b</literal> are hex digits
+ * Returns a textual specification of @color in the hexadecimal
+ * form “\#rrrrggggbbbb” where “r”, “g” and “b” are hex digits
  * representing the red, green and blue components respectively.
  *
  * The returned string can be parsed by gdk_color_parse().
  *
- * Return value: a newly-allocated text string
+ * Returns: a newly-allocated text string
  *
  * Since: 2.12
+ *
+ * Deprecated: 3.14: Use #GdkRGBA
  */
 gchar *
 gdk_color_to_string (const GdkColor *color)

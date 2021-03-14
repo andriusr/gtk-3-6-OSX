@@ -15,12 +15,12 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __GDK_QUARTZ_DEVICE_CORE_H__
+#define __GDK_QUARTZ_DEVICE_CORE_H__
+
 #if !defined(__GDKQUARTZ_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkquartz.h> can be included directly."
 #endif
-
-#ifndef __GDK_QUARTZ_DEVICE_CORE_H__
-#define __GDK_QUARTZ_DEVICE_CORE_H__
 
 #include <gdk/gdk.h>
 
@@ -36,6 +36,7 @@ G_BEGIN_DECLS
 typedef struct _GdkQuartzDeviceCore GdkQuartzDeviceCore;
 typedef struct _GdkQuartzDeviceCoreClass GdkQuartzDeviceCoreClass;
 
+GDK_AVAILABLE_IN_ALL
 GType gdk_quartz_device_core_get_type (void) G_GNUC_CONST;
 
 G_END_DECLS

@@ -52,10 +52,9 @@
  * @Title: X Window System Interaction
  *
  * The functions in this section are specific to the GDK X11 backend.
- * To use them, you need to include the <literal>&lt;gdk/gdkx.h&gt;</literal>
- * header and use the X11-specific pkg-config files to build your
- * application (either <literal>gdk-x11-3.0</literal> or
- * <literal>gtk+-x11-3.0</literal>).
+ * To use them, you need to include the `<gdk/gdkx.h>` header and use
+ * the X11-specific pkg-config files to build your application (either
+ * `gdk-x11-3.0` or `gtk+-x11-3.0`).
  *
  * To make your code compile with other GDK backends, guard backend-specific
  * calls by an ifdef as follows. Since GDK may be built with multiple
@@ -65,14 +64,14 @@
  * #ifdef GDK_WINDOWING_X11
  *   if (GDK_IS_X11_DISPLAY (display))
  *     {
- *       /&ast; make X11-specific calls here &ast;/
+ *       // make X11-specific calls here
  *     }
  *   else
  * #endif
  * #ifdef GDK_WINDOWING_QUARTZ
  *   if (GDK_IS_QUARTZ_DISPLAY (display))
  *     {
- *       /&ast; make Quartz-specific calls here &ast/
+ *       // make Quartz-specific calls here
  *     }
  *   else
  * #endif
@@ -368,6 +367,7 @@ void
 _gdk_x11_region_get_xrectangles (const cairo_region_t *region,
                                  gint             x_offset,
                                  gint             y_offset,
+                                 gint             scale,
                                  XRectangle     **rects,
                                  gint            *n_rects)
 {
@@ -381,10 +381,10 @@ _gdk_x11_region_get_xrectangles (const cairo_region_t *region,
   for (i = 0; i < n; i++)
     {
       cairo_region_get_rectangle (region, i, &box);
-      rectangles[i].x = CLAMP (box.x + x_offset, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].y = CLAMP (box.y + y_offset, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].width = CLAMP (box.width, G_MINSHORT, G_MAXSHORT);
-      rectangles[i].height = CLAMP (box.height, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].x = CLAMP ((box.x + x_offset) * scale, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].y = CLAMP ((box.y + y_offset) * scale, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].width = CLAMP (box.width * scale, G_MINSHORT, G_MAXSHORT);
+      rectangles[i].height = CLAMP (box.height * scale, G_MINSHORT, G_MAXSHORT);
     }
 
   *n_rects = n;
@@ -422,7 +422,7 @@ gdk_x11_ungrab_server (void)
  * 
  * Gets the default GTK+ screen number.
  * 
- * Return value: returns the screen number specified by
+ * Returns: returns the screen number specified by
  *   the --display command line option or the DISPLAY environment
  *   variable when gdk_init() calls XOpenDisplay().
  **/
@@ -438,7 +438,7 @@ gdk_x11_get_default_screen (void)
  * Gets the root window of the default screen 
  * (see gdk_x11_get_default_screen()).  
  * 
- * Return value: an Xlib <type>Window</type>.
+ * Returns: an Xlib Window.
  **/
 Window
 gdk_x11_get_default_root_xwindow (void)
@@ -451,9 +451,9 @@ gdk_x11_get_default_root_xwindow (void)
  * 
  * Gets the default GTK+ display.
  * 
- * Return value: (transfer none): the Xlib <type>Display*</type> for
- * the display specified in the <option>--display</option> command
- * line option or the <envar>DISPLAY</envar> environment variable.
+ * Returns: (transfer none): the Xlib Display* for
+ * the display specified in the `--display` command
+ * line option or the `DISPLAY` environment variable.
  **/
 Display *
 gdk_x11_get_default_xdisplay (void)

@@ -27,7 +27,6 @@
 
 #include "config.h"
 #include <stdlib.h>
-#include <windows.h>
 
 #include "gdk.h"
 #include "gdkwindowimpl.h"
@@ -229,7 +228,7 @@ _gdk_windowing_window_init (GdkScreen *screen)
   window->visual = gdk_screen_get_system_visual (screen);
 
   window->window_type = GDK_WINDOW_ROOT;
-  window->depth = gdk_visual_get_system ()->depth;
+  window->depth = window->visual->depth;
 
   _gdk_root_window_size_init ();
 
@@ -706,6 +705,7 @@ gdk_win32_window_foreign_new_for_display (GdkDisplay      *display,
   window = _gdk_display_create_window (display);
   window->visual = gdk_screen_get_system_visual (_gdk_screen);
   window->impl = g_object_new (GDK_TYPE_WINDOW_IMPL_WIN32, NULL);
+  window->impl_window = window;
   impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
   impl->wrapper = window;
   parent = GetParent (anid);
@@ -715,6 +715,8 @@ gdk_win32_window_foreign_new_for_display (GdkDisplay      *display,
     window->parent = _gdk_root;
   
   window->parent->children = g_list_prepend (window->parent->children, window);
+  window->parent->impl_window->native_children =
+    g_list_prepend (window->parent->impl_window->native_children, window);
 
   GetClientRect ((HWND) anid, &rect);
   point.x = rect.left;
@@ -741,6 +743,7 @@ gdk_win32_window_foreign_new_for_display (GdkDisplay      *display,
   window->viewable = TRUE;
 
   window->depth = gdk_visual_get_system ()->depth;
+  GDK_WINDOW_HWND (window) = anid;
 
   g_object_ref (window);
   gdk_win32_handle_table_insert (&GDK_WINDOW_HWND (window), window);
@@ -793,18 +796,6 @@ gdk_win32_window_destroy (GdkWindow *window,
       window->destroyed = TRUE;
       DestroyWindow (GDK_WINDOW_HWND (window));
     }
-}
-
-static cairo_surface_t *
-gdk_win32_window_resize_cairo_surface (GdkWindow       *window,
-                                       cairo_surface_t *surface,
-                                       gint             width,
-                                       gint             height)
-{
-  /* XXX: Make Cairo surface use DC clip */
-  cairo_surface_destroy (surface);
-
-  return NULL;
 }
 
 static void
@@ -1210,8 +1201,6 @@ static void
 gdk_win32_window_move (GdkWindow *window,
 		       gint x, gint y)
 {
-  GdkWindowImplWin32 *impl;
-
   g_return_if_fail (GDK_IS_WINDOW (window));
 
   if (GDK_WINDOW_DESTROYED (window))
@@ -1219,8 +1208,6 @@ gdk_win32_window_move (GdkWindow *window,
 
   GDK_NOTE (MISC, g_print ("gdk_win32_window_move: %p: %+d%+d\n",
                            GDK_WINDOW_HWND (window), x, y));
-
-  impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
 
   if (window->state & GDK_WINDOW_STATE_FULLSCREEN)
     return;
@@ -1256,8 +1243,6 @@ static void
 gdk_win32_window_resize (GdkWindow *window,
 			 gint width, gint height)
 {
-  GdkWindowImplWin32 *impl;
-
   g_return_if_fail (GDK_IS_WINDOW (window));
 
   if (GDK_WINDOW_DESTROYED (window))
@@ -1270,8 +1255,6 @@ gdk_win32_window_resize (GdkWindow *window,
 
   GDK_NOTE (MISC, g_print ("gdk_win32_window_resize: %p: %dx%d\n",
                            GDK_WINDOW_HWND (window), width, height));
-
-  impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
 
   if (window->state & GDK_WINDOW_STATE_FULLSCREEN)
     return;
@@ -1308,8 +1291,6 @@ gdk_win32_window_move_resize_internal (GdkWindow *window,
 				       gint       width,
 				       gint       height)
 {
-  GdkWindowImplWin32 *impl;
-
   g_return_if_fail (GDK_IS_WINDOW (window));
 
   if (GDK_WINDOW_DESTROYED (window))
@@ -1319,8 +1300,6 @@ gdk_win32_window_move_resize_internal (GdkWindow *window,
     width = 1;
   if (height < 1)
     height = 1;
-
-  impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
 
   if (window->state & GDK_WINDOW_STATE_FULLSCREEN)
     return;
@@ -1764,6 +1743,8 @@ gdk_win32_window_set_transient_for (GdkWindow *window,
 			      GdkWindow *parent)
 {
   HWND window_id, parent_id;
+  LONG_PTR old_ptr;
+  DWORD w32_error;
   GdkWindowImplWin32 *window_impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
   GdkWindowImplWin32 *parent_impl = NULL;
   GSList *item;
@@ -1822,14 +1803,28 @@ gdk_win32_window_set_transient_for (GdkWindow *window,
       g_object_ref (G_OBJECT (parent));
     }
 
+  SetLastError (0);
+  old_ptr = GetWindowLongPtr (window_id, GWLP_HWNDPARENT);
+  w32_error = GetLastError ();
+
+  /* Don't re-set GWLP_HWNDPARENT to the same value */
+  if ((HWND) old_ptr == parent_id && w32_error == NO_ERROR)
+    return;
+
+  /* Don't return if it failed, try SetWindowLongPtr() anyway */
+  if (old_ptr == 0 && w32_error != NO_ERROR)
+    WIN32_API_FAILED ("GetWindowLongPtr");
+
   /* This changes the *owner* of the window, despite the misleading
    * name. (Owner and parent are unrelated concepts.) At least that's
    * what people who seem to know what they talk about say on
    * USENET. Search on Google.
    */
   SetLastError (0);
-  if (SetWindowLongPtr (window_id, GWLP_HWNDPARENT, (LONG_PTR) parent_id) == 0 &&
-      GetLastError () != 0)
+  old_ptr = SetWindowLongPtr (window_id, GWLP_HWNDPARENT, (LONG_PTR) parent_id);
+  w32_error = GetLastError ();
+
+  if (old_ptr == 0 && w32_error != NO_ERROR)
     WIN32_API_FAILED ("SetWindowLongPtr");
 }
 
@@ -2021,7 +2016,7 @@ gdk_win32_window_get_geometry (GdkWindow *window,
     }
 }
 
-static gint
+static void
 gdk_win32_window_get_root_coords (GdkWindow *window,
 				  gint       x,
 				  gint       y,
@@ -2047,7 +2042,6 @@ gdk_win32_window_get_root_coords (GdkWindow *window,
 			   GDK_WINDOW_HWND (window),
 			   x, y,
 			   tx + _gdk_offset_x, ty + _gdk_offset_y));
-  return 1;
 }
 
 static void
@@ -2063,27 +2057,6 @@ gdk_win32_window_restack_toplevel (GdkWindow *window,
 				   gboolean   above)
 {
 	// ### TODO
-}
-
-static void
-gdk_win32_window_get_root_origin (GdkWindow *window,
-			    gint      *x,
-			    gint      *y)
-{
-  GdkRectangle rect;
-
-  g_return_if_fail (GDK_IS_WINDOW (window));
-
-  gdk_window_get_frame_extents (window, &rect);
-
-  if (x)
-    *x = rect.x;
-
-  if (y)
-    *y = rect.y;
-
-  GDK_NOTE (MISC, g_print ("gdk_window_get_root_origin: %p: %+d%+d\n",
-			   GDK_WINDOW_HWND (window), rect.x, rect.y));
 }
 
 static void
@@ -2127,8 +2100,8 @@ gdk_win32_window_get_frame_extents (GdkWindow    *window,
 static gboolean
 gdk_window_win32_get_device_state (GdkWindow       *window,
                                    GdkDevice       *device,
-                                   gint            *x,
-                                   gint            *y,
+                                   gdouble         *x,
+                                   gdouble         *y,
                                    GdkModifierType *mask)
 {
   GdkWindow *child;
@@ -2140,27 +2113,6 @@ gdk_window_win32_get_device_state (GdkWindow       *window,
                                               NULL, NULL,
                                               x, y, mask);
   return (child != NULL);
-}
-
-void
-_gdk_windowing_get_device_state (GdkDisplay       *display,
-                                 GdkDevice        *device,
-                                 GdkScreen       **screen,
-                                 gint             *x,
-                                 gint             *y,
-                                 GdkModifierType  *mask)
-{
-  g_return_if_fail (display == _gdk_display);
-
-  if (screen)
-    *screen = _gdk_screen;
-
-  GDK_DEVICE_GET_CLASS (device)->query_state (device,
-                                              gdk_screen_get_root_window (_gdk_screen),
-                                              NULL, NULL,
-                                              x, y,
-                                              NULL, NULL,
-                                              mask);
 }
 
 void
@@ -2176,17 +2128,6 @@ gdk_display_warp_device (GdkDisplay *display,
   g_return_if_fail (display == gdk_device_get_display (device));
 
   GDK_DEVICE_GET_CLASS (device)->warp (device, screen, x, y);
-}
-
-GdkWindow*
-_gdk_windowing_window_at_device_position (GdkDisplay      *display,
-                                          GdkDevice       *device,
-                                          gint            *win_x,
-                                          gint            *win_y,
-                                          GdkModifierType *mask,
-                                          gboolean         get_toplevel)
-{
-  return GDK_DEVICE_GET_CLASS (device)->window_at_position (device, win_x, win_y, mask, get_toplevel);
 }
 
 static GdkEventMask  
@@ -2289,7 +2230,6 @@ gdk_win32_window_set_icon_list (GdkWindow *window,
   gint dw, dh, diff;
   HICON small_hicon, big_hicon;
   GdkWindowImplWin32 *impl;
-  gint i, big_i, small_i;
 
   g_return_if_fail (GDK_IS_WINDOW (window));
 
@@ -2309,7 +2249,6 @@ gdk_win32_window_set_icon_list (GdkWindow *window,
   small_pixbuf = NULL;
   big_diff = 0;
   small_diff = 0;
-  i = 0;
   while (pixbufs)
     {
       pixbuf = (GdkPixbuf*) pixbufs->data;
@@ -2323,7 +2262,6 @@ gdk_win32_window_set_icon_list (GdkWindow *window,
 	{
 	  big_pixbuf = pixbuf;
 	  big_diff = diff;
-	  big_i = i;
 	}
 
       dw = ABS (w - small_w);
@@ -2333,11 +2271,9 @@ gdk_win32_window_set_icon_list (GdkWindow *window,
 	{
 	  small_pixbuf = pixbuf;
 	  small_diff = diff;
-	  small_i = i;
 	}
 
       pixbufs = g_list_next (pixbufs);
-      i++;
     }
 
   /* Create the icons */
@@ -2686,7 +2622,7 @@ gdk_win32_window_begin_resize_drag (GdkWindow     *window,
   /* Must break the automatic grab that occured when the button was
    * pressed, otherwise it won't work.
    */
-  gdk_display_pointer_ungrab (_gdk_display, 0);
+  gdk_device_ungrab (device, 0);
 
   switch (edge)
     {
@@ -2753,7 +2689,7 @@ gdk_win32_window_begin_move_drag (GdkWindow *window,
   /* Must break the automatic grab that occured when the button was pressed,
    * otherwise it won't work.
    */
-  gdk_display_pointer_ungrab (_gdk_display, 0);
+  gdk_device_ungrab (device, 0);
 
   DefWindowProcW (GDK_WINDOW_HWND (window), WM_NCLBUTTONDOWN, HTCAPTION,
 		  MAKELPARAM (root_x - _gdk_offset_x, root_y - _gdk_offset_y));
@@ -3249,18 +3185,6 @@ gdk_win32_window_lookup_for_display (GdkDisplay *display,
 }
 
 static void
-gdk_win32_window_enable_synchronized_configure (GdkWindow *window)
-{
-  /* nothing - no window manager to cooperate with */
-}
-
-static void
-gdk_win32_window_configure_finished (GdkWindow *window)
-{
-  /* nothing - no window manager to cooperate with */
-}
-
-static void
 gdk_win32_window_set_opacity (GdkWindow *window,
 			gdouble    opacity)
 {
@@ -3269,9 +3193,8 @@ gdk_win32_window_set_opacity (GdkWindow *window,
   PFN_SetLayeredWindowAttributes setLayeredWindowAttributes = NULL;
 
   g_return_if_fail (GDK_IS_WINDOW (window));
-  g_return_if_fail (WINDOW_IS_TOPLEVEL (window));
 
-  if (GDK_WINDOW_DESTROYED (window))
+  if (!WINDOW_IS_TOPLEVEL (window) || GDK_WINDOW_DESTROYED (window))
     return;
 
   if (opacity < 0)
@@ -3315,114 +3238,15 @@ gdk_win32_window_get_shape (GdkWindow *window)
   return NULL;
 }
 
-static gboolean
-_gdk_win32_window_queue_antiexpose (GdkWindow *window,
-				    cairo_region_t *area)
-{
-  HRGN hrgn = cairo_region_to_hrgn (area, 0, 0);
-
-  GDK_NOTE (EVENTS, g_print ("_gdk_windowing_window_queue_antiexpose: ValidateRgn %p %s\n",
-			     GDK_WINDOW_HWND (window),
-			     _gdk_win32_cairo_region_to_string (area)));
-
-  ValidateRgn (GDK_WINDOW_HWND (window), hrgn);
-
-  DeleteObject (hrgn);
-
-  return FALSE;
-}
-
-/* Gets called from gdwindow.c(do_move_region_bits_on_impl)
- * and got tested with testgtk::big_window. Given the previous,
- * untested implementation this one looks much too simple ;)
- */
-static void
-_gdk_win32_window_translate (GdkWindow *window,
-                             cairo_region_t *area, /* In impl window coords */
-                             gint       dx,
-                             gint       dy)
-{
-  GdkWindowImplWin32 *impl = GDK_WINDOW_IMPL_WIN32 (window->impl);
-  GdkRectangle extents;
-  RECT rect;
-  HRGN hrgn, area_hrgn;
-  HDC hdc;
-  int ret;
-
-  /* Note: This is the destination area, not the source, and
-     it has been moved by dx, dy from the source area */
-  area_hrgn = cairo_region_to_hrgn (area, 0, 0);
-
-  /* First we copy any outstanding invalid areas in the 
-     source area to the new position in the destination area */
-  hrgn = CreateRectRgn (0, 0, 0, 0);
-  ret = GetUpdateRgn (GDK_WINDOW_HWND (window), hrgn, FALSE);
-  if (ret == ERROR)
-    WIN32_API_FAILED ("GetUpdateRgn");
-  else if (ret != NULLREGION)
-    {
-      /* Convert the source invalid region as it would be copied */
-      OffsetRgn (hrgn, dx, dy);
-      /* Keep what intersects the copy destination area */
-      ret = CombineRgn (hrgn, hrgn, area_hrgn, RGN_AND);
-      /* And invalidate it */
-      if (ret == ERROR)
-        WIN32_API_FAILED ("CombineRgn");
-      else if (ret != NULLREGION)
-	API_CALL (InvalidateRgn, (GDK_WINDOW_HWND (window), hrgn, TRUE));
-    }
-
-  /* Then we copy the bits, invalidating whatever is copied from
-     otherwise invisible areas */
-
-  hdc = _gdk_win32_impl_acquire_dc (impl);
-
-  /* Clip hdc to target region */
-  API_CALL (SelectClipRgn, (hdc, area_hrgn));
-
-  cairo_region_get_extents (area, &extents);
-
-  rect.left = MIN (extents.x, extents.x - dx);
-  rect.top = MIN (extents.y, extents.y - dy);
-  rect.right = MAX (extents.x + extents.width, extents.x - dx  + extents.width);
-  rect.bottom = MAX (extents.y + extents.height, extents.y - dy  + extents.height);
-
-  SetRectRgn (hrgn, 0, 0, 0, 0);
-
-  if (!ScrollDC (hdc, dx, dy, &rect, NULL, hrgn, NULL))
-    WIN32_GDI_FAILED ("ScrollDC");
-  else if (!InvalidateRgn (GDK_WINDOW_HWND (window), hrgn, FALSE))
-    WIN32_GDI_FAILED ("InvalidateRgn");
-
-  /* Unset hdc clip region */
-  API_CALL (SelectClipRgn, (hdc, NULL));
-
-  _gdk_win32_impl_release_dc (impl);
-
-  if (!DeleteObject (hrgn))
-    WIN32_GDI_FAILED ("DeleteObject");
-
-  if (!DeleteObject (area_hrgn))
-    WIN32_GDI_FAILED ("DeleteObject");
-}
-
 static void
 gdk_win32_input_shape_combine_region (GdkWindow *window,
 				      const cairo_region_t *shape_region,
 				      gint offset_x,
 				      gint offset_y)
 {
-  if (GDK_WINDOW_DESTROYED (window))
-    return;
-  /* CHECK: are these really supposed to be the same? */
-  gdk_win32_window_shape_combine_region (window, shape_region, offset_x, offset_y);
-}
-
-static void
-gdk_win32_window_process_updates_recurse (GdkWindow *window,
-					       cairo_region_t *region)
-{
-  _gdk_window_process_updates_recurse (window, region);
+  /* Partial input shape support is implemented by handling the
+   * WM_NCHITTEST message.
+   */
 }
 
 gboolean
@@ -3437,7 +3261,7 @@ gdk_win32_window_is_win32 (GdkWindow *window)
  * 
  * Gets a DC with the given drawable selected into it.
  *
- * Return value: The DC, on success. Otherwise
+ * Returns: The DC, on success. Otherwise
  *  %NULL. If this function succeeded
  *  _gdk_win32_impl_release_dc()  must be called
  *  release the DC when you are done using it.
@@ -3571,11 +3395,8 @@ gdk_window_impl_win32_class_init (GdkWindowImplWin32Class *klass)
   impl_class->shape_combine_region = gdk_win32_window_shape_combine_region;
   impl_class->input_shape_combine_region = gdk_win32_input_shape_combine_region;
   impl_class->set_static_gravities = gdk_win32_window_set_static_gravities;
-  impl_class->queue_antiexpose = _gdk_win32_window_queue_antiexpose;
-  impl_class->translate = _gdk_win32_window_translate;
   impl_class->destroy = gdk_win32_window_destroy;
   impl_class->destroy_foreign = gdk_win32_window_destroy_foreign;
-  impl_class->resize_cairo_surface = gdk_win32_window_resize_cairo_surface;
   impl_class->get_shape = gdk_win32_window_get_shape;
   //FIXME?: impl_class->get_input_shape = gdk_win32_window_get_input_shape;
 
@@ -3593,7 +3414,6 @@ gdk_window_impl_win32_class_init (GdkWindowImplWin32Class *klass)
   impl_class->set_role = gdk_win32_window_set_role;
   //impl_class->set_startup_id = gdk_x11_window_set_startup_id;
   impl_class->set_transient_for = gdk_win32_window_set_transient_for;
-  impl_class->get_root_origin = gdk_win32_window_get_root_origin;
   impl_class->get_frame_extents = gdk_win32_window_get_frame_extents;
   impl_class->set_override_redirect = gdk_win32_window_set_override_redirect;
   impl_class->set_accept_focus = gdk_win32_window_set_accept_focus;
@@ -3618,15 +3438,12 @@ gdk_window_impl_win32_class_init (GdkWindowImplWin32Class *klass)
 
   impl_class->begin_resize_drag = gdk_win32_window_begin_resize_drag;
   impl_class->begin_move_drag = gdk_win32_window_begin_move_drag;
-  impl_class->enable_synchronized_configure = gdk_win32_window_enable_synchronized_configure;
-  impl_class->configure_finished = gdk_win32_window_configure_finished;
   impl_class->set_opacity = gdk_win32_window_set_opacity;
   //impl_class->set_composited = gdk_win32_window_set_composited;
   impl_class->destroy_notify = gdk_win32_window_destroy_notify;
   impl_class->get_drag_protocol = _gdk_win32_window_get_drag_protocol;
   impl_class->register_dnd = _gdk_win32_window_register_dnd;
   impl_class->drag_begin = _gdk_win32_window_drag_begin;
-  impl_class->process_updates_recurse = gdk_win32_window_process_updates_recurse;
   //? impl_class->sync_rendering = _gdk_win32_window_sync_rendering;
   impl_class->simulate_key = _gdk_win32_window_simulate_key;
   impl_class->simulate_button = _gdk_win32_window_simulate_button;

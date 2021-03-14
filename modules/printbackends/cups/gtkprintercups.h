@@ -75,6 +75,19 @@ struct _GtkPrinterCups
   gchar        *colord_title;
   gchar        *colord_qualifier;
 #endif
+#ifdef HAVE_CUPS_API_1_6
+  gboolean  avahi_browsed;
+  gchar    *avahi_name;
+  gchar    *avahi_type;
+  gchar    *avahi_domain;
+#endif
+  guchar ipp_version_major;
+  guchar ipp_version_minor;
+  gboolean supports_copies;
+  gboolean supports_collate;
+  gboolean supports_number_up;
+  char   **covers;
+  int      number_of_covers;
 };
 
 struct _GtkPrinterCupsClass

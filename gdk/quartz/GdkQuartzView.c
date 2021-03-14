@@ -17,8 +17,6 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <AvailabilityMacros.h>
-#include "config.h"
 #import "GdkQuartzView.h"
 #include "gdkquartzwindow.h"
 #include "gdkprivate-quartz.h"
@@ -214,17 +212,13 @@
   else
    {
       str = [string UTF8String];
-      selectedRange = NSMakeRange ([string length], 0);
    }
 
-  if (replacementRange.length > 0)
-    {
-      g_object_set_data (G_OBJECT (gdk_window), TIC_INSERT_TEXT_REPLACE_LEN,
-                         GINT_TO_POINTER (replacementRange.length));
-    }
-
-  g_object_set_data_full (G_OBJECT (gdk_window), TIC_INSERT_TEXT, g_strdup (str), g_free);
-  GDK_NOTE (EVENTS, g_message ("insertText: set %s (%p, nsview %p): %s",
+  prev_str = g_object_get_data (G_OBJECT (gdk_window), TIC_INSERT_TEXT);
+  if (prev_str)
+    g_free (prev_str);
+  g_object_set_data (G_OBJECT (gdk_window), TIC_INSERT_TEXT, g_strdup (str));
+  GDK_NOTE (EVENTS, g_print ("insertText: set %s (%p, nsview %p): %s\n",
 			     TIC_INSERT_TEXT, gdk_window, self,
 			     str ? str : "(empty)"));
 
@@ -677,7 +671,7 @@
   GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (gdk_window->impl);
   NSRect rect;
 
-  if (!impl || !impl->toplevel)
+  if (!impl->toplevel)
     return;
 
   if (trackingRect)
@@ -719,9 +713,6 @@
 
 -(void)setFrame: (NSRect)frame
 {
-  if (GDK_WINDOW_DESTROYED (gdk_window))
-    return;
-  
   [super setFrame: frame];
 
   if ([self window])
