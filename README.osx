@@ -1,2 +1,40 @@
-1. Build suceeds at this point, however, gtk3-demo has problems with scrolling. Mouse or touchpad scroll is not smooth (or it looks like there is no scroll) and view is not updated. Leaving the window, or slicking on it updates view.
+1. Build succeeds at this point, however, gtk3-demo has problems with scrolling. Mouse or touchpad scroll is not smooth (or it looks like there is no scroll) and view is not updated. Leaving the window, or clicking on it updates view.
 Decided to backport 3.14 gdk, that I confirmed, has no issues with scrolling.
+
+2. This version with 3.14 gdk bakported build and operates normally. Scrolling (with mouse wheel) is still a bit slower than bluefish 2.2.12, and CPU consumption is 20% in 2.2.12 and 55% in backported version. Need to check with bf logging disabled.
+Some issues:
+	i. Textview background is grey instead of white (might be theme issue).
+	ii Fonts are larger than were previously (we set it to size 13 in bluefish).
+	iii. Icons are broken in Preferences window. 
+
+3. Scrolling test:
+	2.2.12 bf version (build with gtk 3.6 and glib 2.38) - smooth scrolling using touchpad takes up to 40% cpu, avg ~25%.
+	3.6.6 with backported gdk 3.14 - up to 100%, typ 80% (logging enable)
+	2.24.23 - up to 100%, fan was activated after some time. (logging disabled)
+	
+4. Known facts on BigSur
+Old build gtk 3.6.4 + glib 2.38 + cairo 1.12+BigSur patch has slow scrolling, broken tabs etc.
+
+GtkWave with 3.24.23 + glib 2.66 + cairo 1.16 has high CPU usage, slow responses etc.
+
+GIMP has the same issue, I guess with gtk 3.14 (based on moduleset on gitlab)
+
+Gedit is using 3.14 for building, no reports regarding performance on BigSur
+
+
+5. Based on information from 3.24.30 
+use cairo image surface instead of native surface (https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4071)
+Should try:
+Revert back 3.14 backport;
+Use older cairo version, the same that was used in 2016-2017. Apply BigSur patch.
+Update gdk/quartz/gdkwindow-quartz.c  - it seems most of the drawing goes here.
+Check and apply other patches as necessary.
+
+
+Profiling with Instruments
+
+Run the program you want to test.
+Select program for profiling from dropdown.
+Do what you want to do in the program.
+
+
