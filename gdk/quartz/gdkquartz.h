@@ -21,7 +21,6 @@
 #define __GDK_QUARTZ_H__
 
 #include <AppKit/AppKit.h>
-#include <CoreFoundation/CFString.h>
 
 #include <gdk/gdk.h>
 #include <gdk/gdkprivate.h>
@@ -50,24 +49,11 @@ typedef enum
   GDK_OSX_SNOW_LEOPARD = 6,
   GDK_OSX_LION = 7,
   GDK_OSX_MOUNTAIN_LION = 8,
-  GDK_OSX_MAVERICKS = 9,
-  GDK_OSX_YOSEMITE = 10,
-  GDK_OSX_EL_CAPITAN = 11,
-  GDK_OSX_SIERRA = 12,
-  GDK_OSX_HIGH_SIERRA = 13,
-  GDK_OSX_MOJAVE = 14,
-  GDK_OSX_CATALINA = 15,
-  GDK_OSX_BIGSUR = 16,
-  GDK_OSX_CURRENT = 15,
+  GDK_OSX_CURRENT = 8,
   GDK_OSX_NEW = 99
 } GdkOSXVersion;
 
-GDK_AVAILABLE_IN_ALL
 GdkOSXVersion gdk_quartz_osx_version (void);
-
-GdkAtom   gdk_quartz_pasteboard_type_to_atom_libgtk_only        (NSString       *type);
-NSString *gdk_quartz_target_to_pasteboard_type_libgtk_only      (const gchar    *target);
-NSString *gdk_quartz_atom_to_pasteboard_type_libgtk_only        (GdkAtom         atom);
 
 G_END_DECLS
 

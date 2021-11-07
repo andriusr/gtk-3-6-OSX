@@ -43,7 +43,6 @@
 #endif
 #include <string.h>
 #include <errno.h>
-#include <math.h>
 
 struct _GdkX11Cursor
 {
@@ -64,7 +63,7 @@ static guint theme_serial = 0;
 /* cursor_cache holds a cache of non-pixmap cursors to avoid expensive 
  * libXcursor searches, cursors are added to it but only removed when
  * their display is closed. We make the assumption that since there are 
- * a small number of display’s and a small number of cursor’s that this 
+ * a small number of display's and a small number of cursor's that this 
  * list will stay small enough not to be a problem.
  */
 static GSList* cursor_cache = NULL;
@@ -170,9 +169,7 @@ _gdk_x11_cursor_display_finalize (GdkDisplay *display)
 
 G_DEFINE_TYPE (GdkX11Cursor, gdk_x11_cursor, GDK_TYPE_CURSOR)
 
-static cairo_surface_t *gdk_x11_cursor_get_surface (GdkCursor *cursor,
-						    gdouble   *x_hot,
-						    gdouble   *y_hot);
+static GdkPixbuf* gdk_x11_cursor_get_image (GdkCursor *cursor);
 
 static void
 gdk_x11_cursor_finalize (GObject *object)
@@ -197,7 +194,7 @@ gdk_x11_cursor_class_init (GdkX11CursorClass *xcursor_class)
 
   object_class->finalize = gdk_x11_cursor_finalize;
 
-  cursor_class->get_surface = gdk_x11_cursor_get_surface;
+  cursor_class->get_image = gdk_x11_cursor_get_image;
 }
 
 static void
@@ -291,7 +288,7 @@ _gdk_x11_display_get_cursor_for_type (GdkDisplay    *display,
  * 
  * Returns the display of a #GdkCursor.
  * 
- * Returns: (transfer none): an Xlib Display*.
+ * Return value: (transfer none): an Xlib <type>Display*</type>.
  **/
 Display *
 gdk_x11_cursor_get_xdisplay (GdkCursor *cursor)
@@ -307,7 +304,7 @@ gdk_x11_cursor_get_xdisplay (GdkCursor *cursor)
  * 
  * Returns the X cursor belonging to a #GdkCursor.
  * 
- * Returns: an Xlib Cursor.
+ * Return value: an Xlib <type>Cursor</type>.
  **/
 Cursor
 gdk_x11_cursor_get_xcursor (GdkCursor *cursor)
@@ -319,25 +316,22 @@ gdk_x11_cursor_get_xcursor (GdkCursor *cursor)
 
 #if defined(HAVE_XCURSOR) && defined(HAVE_XFIXES) && XFIXES_MAJOR >= 2
 
-static cairo_surface_t *  
-gdk_x11_cursor_get_surface (GdkCursor *cursor,
-			    gdouble   *x_hot,
-			    gdouble   *y_hot)
+static GdkPixbuf*  
+gdk_x11_cursor_get_image (GdkCursor *cursor)
 {
-  GdkDisplay *display;
   Display *xdisplay;
   GdkX11Cursor *private;
   XcursorImages *images = NULL;
   XcursorImage *image;
   gint size;
-  cairo_surface_t *surface;
-  gint scale;
+  gchar buf[32];
+  guchar *data, *p, tmp;
+  GdkPixbuf *pixbuf;
   gchar *theme;
   
   private = GDK_X11_CURSOR (cursor);
-
-  display = gdk_cursor_get_display (cursor);
-  xdisplay = GDK_DISPLAY_XDISPLAY (display);
+    
+  xdisplay = GDK_DISPLAY_XDISPLAY (gdk_cursor_get_display (cursor));
 
   size = XcursorGetDefaultSize (xdisplay);
   theme = XcursorGetTheme (xdisplay);
@@ -355,30 +349,31 @@ gdk_x11_cursor_get_surface (GdkCursor *cursor,
 
   image = images->images[0];
 
-  /* Assume the currently set cursor was defined for the screen
-     scale */
-  scale =
-    gdk_screen_get_monitor_scale_factor (gdk_display_get_default_screen (display), 0);
+  data = g_malloc (4 * image->width * image->height);
+  memcpy (data, image->pixels, 4 * image->width * image->height);
 
-  surface = gdk_window_create_similar_image_surface (NULL,
-						     CAIRO_FORMAT_ARGB32,
-						     image->width,
-						     image->height,
-						     scale);
+  for (p = data; p < data + (4 * image->width * image->height); p += 4)
+    {
+      tmp = p[0];
+      p[0] = p[2];
+      p[2] = tmp;
+    }
 
-  memcpy (cairo_image_surface_get_data (surface),
-	  image->pixels, 4 * image->width * image->height);
+  pixbuf = gdk_pixbuf_new_from_data (data, GDK_COLORSPACE_RGB, TRUE,
+                                     8, image->width, image->height,
+                                     4 * image->width,
+                                     (GdkPixbufDestroyNotify)g_free, NULL);
 
-  cairo_surface_mark_dirty (surface);
-
-  if (x_hot)
-    *x_hot = (double)image->xhot / scale;
-  if (y_hot)
-    *y_hot = (double)image->yhot / scale;
+  if (private->name)
+    gdk_pixbuf_set_option (pixbuf, "name", private->name);
+  g_snprintf (buf, 32, "%d", image->xhot);
+  gdk_pixbuf_set_option (pixbuf, "x_hot", buf);
+  g_snprintf (buf, 32, "%d", image->yhot);
+  gdk_pixbuf_set_option (pixbuf, "y_hot", buf);
 
   XcursorImagesDestroy (images);
 
-  return surface;
+  return pixbuf;
 }
 
 void
@@ -448,7 +443,7 @@ update_cursor (gpointer data,
  *
  * If the windowing system supports it, existing cursors created
  * with gdk_cursor_new(), gdk_cursor_new_for_display() and
- * gdk_cursor_new_from_name() are updated to reflect the theme
+ * gdk_cursor_new_for_name() are updated to reflect the theme
  * change. Custom cursors constructed with
  * gdk_cursor_new_from_pixbuf() will have to be handled
  * by the application (GTK+ applications can learn about
@@ -489,10 +484,8 @@ gdk_x11_display_set_cursor_theme (GdkDisplay  *display,
 
 #else
 
-static cairo_surface_t *
-gdk_x11_cursor_get_surface (GdkCursor *cursor,
-			    gdouble *x_hot,
-			    gdouble *y_hot)
+static GdkPixbuf*
+gdk_x11_cursor_get_image (GdkCursor *cursor)
 {
   return NULL;
 }
@@ -515,46 +508,23 @@ _gdk_x11_cursor_update_theme (GdkCursor *cursor)
 
 #ifdef HAVE_XCURSOR
 
-static void
-get_surface_size (cairo_surface_t *surface,
-		  int *width,
-		  int *height)
-{
-  double x_scale, y_scale;
-
-  x_scale = y_scale = 1;
-
-#ifdef HAVE_CAIRO_SURFACE_SET_DEVICE_SCALE
-  cairo_surface_get_device_scale (surface, &x_scale, &y_scale);
-#endif
-
-  /* Assume any set scaling is icon scale */
-  *width =
-    ceil (cairo_image_surface_get_width (surface) / x_scale);
-  *height =
-    ceil (cairo_image_surface_get_height (surface) / y_scale);
-}
-
 static XcursorImage*
-create_cursor_image (cairo_surface_t *source_surface,
+create_cursor_image (GdkPixbuf *pixbuf,
                      gint       x,
-                     gint       y,
-		     gint       scale)
+                     gint       y)
 {
-  gint width, height;
+  guint width, height;
   XcursorImage *xcimage;
   cairo_surface_t *surface;
   cairo_t *cr;
 
-  get_surface_size (source_surface, &width, &height);
+  width = gdk_pixbuf_get_width (pixbuf);
+  height = gdk_pixbuf_get_height (pixbuf);
 
-  width *= scale;
-  height *= scale;
-  
   xcimage = XcursorImageCreate (width, height);
 
-  xcimage->xhot = x * scale;
-  xcimage->yhot = y * scale;
+  xcimage->xhot = x;
+  xcimage->yhot = y;
 
   surface = cairo_image_surface_create_for_data ((guchar *) xcimage->pixels,
                                                  CAIRO_FORMAT_ARGB32,
@@ -562,30 +532,53 @@ create_cursor_image (cairo_surface_t *source_surface,
                                                  height,
                                                  width * 4);
 
-#ifdef HAVE_CAIRO_SURFACE_SET_DEVICE_SCALE
-  cairo_surface_set_device_scale (surface, scale, scale);
-#endif
-
   cr = cairo_create (surface);
   cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
-  cairo_set_source_surface (cr, source_surface, 0, 0);
+  gdk_cairo_set_source_pixbuf (cr, pixbuf, 0, 0);
   cairo_paint (cr);
   cairo_destroy (cr);
+
   cairo_surface_destroy (surface);
 
   return xcimage;
 }
 
 GdkCursor *
-_gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
-					 cairo_surface_t *surface,
-					 gdouble     x,
-					 gdouble     y)
+_gdk_x11_display_get_cursor_for_pixbuf (GdkDisplay *display,
+                                        GdkPixbuf  *pixbuf,
+                                        gint        x,
+                                        gint        y)
 {
   XcursorImage *xcimage;
   Cursor xcursor;
   GdkX11Cursor *private;
-  int target_scale;
+  const char *option;
+  char *end;
+  gint64 value;
+
+  if (x == -1 && (option = gdk_pixbuf_get_option (pixbuf, "x_hot")))
+    {
+      errno = 0;
+      end = NULL;
+      value = g_ascii_strtoll (option, &end, 10);
+      if (errno == 0 &&
+          end != option &&
+          value >= 0 && value < G_MAXINT)
+        x = (gint) value;
+    }
+  if (y == -1 && (option = gdk_pixbuf_get_option (pixbuf, "y_hot")))
+    {
+      errno = 0;
+      end = NULL;
+      value = g_ascii_strtoll (option, &end, 10);
+      if (errno == 0 &&
+          end != option &&
+          value >= 0 && value < G_MAXINT)
+        y = (gint) value;
+    }
+
+  g_return_val_if_fail (0 <= x && x < gdk_pixbuf_get_width (pixbuf), NULL);
+  g_return_val_if_fail (0 <= y && y < gdk_pixbuf_get_height (pixbuf), NULL);
 
   if (gdk_display_is_closed (display))
     {
@@ -593,9 +586,7 @@ _gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
     }
   else
     {
-      target_scale =
-	gdk_screen_get_monitor_scale_factor (gdk_display_get_default_screen (display), 0);
-      xcimage = create_cursor_image (surface, x, y, target_scale);
+      xcimage = create_cursor_image (pixbuf, x, y);
       xcursor = XcursorImageLoadCursor (GDK_DISPLAY_XDISPLAY (display), xcimage);
       XcursorImageDestroy (xcimage);
     }
@@ -717,10 +708,10 @@ gdk_cursor_new_from_pixmap (GdkDisplay     *display,
 }
 
 GdkCursor *
-_gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
-					 cairo_surface_t *surface,
-					 gdouble     x,
-					 gdouble     y)
+_gdk_x11_display_get_cursor_for_pixbuf (GdkDisplay *display,
+                                        GdkPixbuf  *pixbuf,
+                                        gint        x,
+                                        gint        y)
 {
   GdkCursor *cursor;
   cairo_surface_t *pixmap, *mask;
@@ -731,18 +722,13 @@ _gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
   GdkScreen *screen;
   cairo_surface_t *image;
   cairo_t *cr;
-  GdkPixbuf *pixbuf;
 
-  width = cairo_image_surface_get_width (surface);
-  height = cairo_image_surface_get_height (surface);
+  width = gdk_pixbuf_get_width (pixbuf);
+  height = gdk_pixbuf_get_height (pixbuf);
 
   g_return_val_if_fail (0 <= x && x < width, NULL);
   g_return_val_if_fail (0 <= y && y < height, NULL);
 
-  /* Note: This does not support scaled surfaced, if you need that you
-     want XCursor anyway */
-  pixbuf = gdk_pixbuf_get_from_surface (surface, 0, 0, width, height);
-  
   n_channels = gdk_pixbuf_get_n_channels (pixbuf);
   rowstride = gdk_pixbuf_get_rowstride (pixbuf);
   pixels = gdk_pixbuf_get_pixels (pixbuf);
@@ -773,8 +759,6 @@ _gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
             }
         }
     }
-
-  g_object_unref (pixbuf);
 
   screen = gdk_display_get_default_screen (display);
 
@@ -808,7 +792,7 @@ _gdk_x11_display_get_cursor_for_surface (GdkDisplay *display,
 
   cairo_surface_destroy (pixmap);
   cairo_surface_destroy (mask);
-  
+
   g_free (data);
   g_free (mask_data);
 

@@ -22,12 +22,12 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/. 
  */
 
-#ifndef __GDK_X11_SCREEN_H__
-#define __GDK_X11_SCREEN_H__
-
 #if !defined (__GDKX_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkx.h> can be included directly."
 #endif
+
+#ifndef __GDK_X11_SCREEN_H__
+#define __GDK_X11_SCREEN_H__
 
 #include <gdk/gdk.h>
 
@@ -50,19 +50,16 @@ typedef GdkScreen GdkX11Screen;
 #endif
 typedef struct _GdkX11ScreenClass GdkX11ScreenClass;
 
-GDK_AVAILABLE_IN_ALL
 GType    gdk_x11_screen_get_type          (void);
 
-GDK_AVAILABLE_IN_ALL
 Screen * gdk_x11_screen_get_xscreen       (GdkScreen   *screen);
-GDK_AVAILABLE_IN_ALL
 int      gdk_x11_screen_get_screen_number (GdkScreen   *screen);
 
-GDK_AVAILABLE_IN_ALL
 const char* gdk_x11_screen_get_window_manager_name (GdkScreen *screen);
 
-GDK_AVAILABLE_IN_ALL
+#ifndef GDK_MULTIHEAD_SAFE
 gint     gdk_x11_get_default_screen       (void);
+#endif
 
 /**
  * GDK_SCREEN_XDISPLAY:
@@ -70,7 +67,7 @@ gint     gdk_x11_get_default_screen       (void);
  *
  * Returns the display of a X11 #GdkScreen.
  *
- * Returns: an Xlib Display*.
+ * Returns: an Xlib <type>Display*</type>
  */
 #define GDK_SCREEN_XDISPLAY(screen) (gdk_x11_display_get_xdisplay (gdk_screen_get_display (screen)))
 
@@ -80,7 +77,7 @@ gint     gdk_x11_get_default_screen       (void);
  *
  * Returns the screen of a X11 #GdkScreen.
  *
- * Returns: an Xlib Screen*
+ * Returns: an Xlib <type>Screen*</type>
  */
 #define GDK_SCREEN_XSCREEN(screen) (gdk_x11_screen_get_xscreen (screen))
 
@@ -94,18 +91,11 @@ gint     gdk_x11_get_default_screen       (void);
  */
 #define GDK_SCREEN_XNUMBER(screen) (gdk_x11_screen_get_screen_number (screen))
 
-GDK_AVAILABLE_IN_ALL
 gboolean gdk_x11_screen_supports_net_wm_hint (GdkScreen *screen,
                                               GdkAtom    property);
 
-GDK_AVAILABLE_IN_ALL
 XID      gdk_x11_screen_get_monitor_output   (GdkScreen *screen,
                                               gint       monitor_num);
-
-GDK_AVAILABLE_IN_3_10
-guint32  gdk_x11_screen_get_number_of_desktops (GdkScreen *screen);
-GDK_AVAILABLE_IN_3_10
-guint32  gdk_x11_screen_get_current_desktop    (GdkScreen *screen);
 
 G_END_DECLS
 

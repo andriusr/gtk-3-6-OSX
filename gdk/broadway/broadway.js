@@ -67,6 +67,83 @@ function logStackTrace(len) {
 	log(callstack[i]);
 }
 
+var base64Values = [
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+    255,255,255,255,255,255,255,255,255,255,255, 62,255,255,255, 63,
+    52, 53, 54, 55, 56, 57, 58, 59, 60, 61,255,255,255,  0,255,255,
+    255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,255,255,255,255,255,
+    255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,255,255,255,255,255
+];
+
+function base64_8(str, index) {
+    var v =
+	(base64Values[str.charCodeAt(index)]) +
+	(base64Values[str.charCodeAt(index+1)] << 6);
+    return v;
+}
+
+function base64_16(str, index) {
+    var v =
+	(base64Values[str.charCodeAt(index)]) +
+	(base64Values[str.charCodeAt(index+1)] << 6) +
+	(base64Values[str.charCodeAt(index+2)] << 12);
+    return v;
+}
+
+function base64_16s(str, index) {
+    var v = base64_16(str, index);
+    if (v > 32767)
+	return v - 65536;
+    else
+	return v;
+}
+
+function base64_24(str, index) {
+    var v =
+	(base64Values[str.charCodeAt(index)]) +
+	(base64Values[str.charCodeAt(index+1)] << 6) +
+	(base64Values[str.charCodeAt(index+2)] << 12) +
+	(base64Values[str.charCodeAt(index+3)] << 18);
+    return v;
+}
+
+function base64_32(str, index) {
+    var v =
+	(base64Values[str.charCodeAt(index)]) +
+	(base64Values[str.charCodeAt(index+1)] << 6) +
+	(base64Values[str.charCodeAt(index+2)] << 12) +
+	(base64Values[str.charCodeAt(index+3)] << 18) +
+	(base64Values[str.charCodeAt(index+4)] << 24) +
+	(base64Values[str.charCodeAt(index+5)] << 30);
+    return v;
+}
+
+function createXHR()
+{
+    try { return new XMLHttpRequest(); } catch(e) {}
+    try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); } catch (e) {}
+    try { return new ActiveXObject("Msxml2.XMLHTTP.3.0"); } catch (e) {}
+    try { return new ActiveXObject("Msxml2.XMLHTTP"); } catch (e) {}
+    try { return new ActiveXObject("Microsoft.XMLHTTP"); } catch (e) {}
+
+    return null;
+}
+
+/* This resizes the window so the *inner* size is the specified size */
+function resizeBrowserWindow(window, w, h) {
+    var innerW = window.innerWidth;
+    var innerH = window.innerHeight;
+
+    var outerW = window.outerWidth;
+    var outerH = window.outerHeight;
+
+    window.resizeTo(w + outerW - innerW,
+		    h + outerH - innerH);
+}
+
 function resizeCanvas(canvas, w, h)
 {
     /* Canvas resize clears the data, so we need to save it first */
@@ -86,10 +163,13 @@ function resizeCanvas(canvas, w, h)
     context.drawImage(tmpCanvas, 0, 0, tmpCanvas.width, tmpCanvas.height);
 }
 
+var useToplevelWindows = false;
+var toplevelWindows = [];
 var grab = new Object();
 grab.window = null;
 grab.ownerEvents = false;
 grab.implicit = false;
+var localGrab = null;
 var keyDownList = [];
 var lastSerial = 0;
 var lastX = 0;
@@ -102,11 +182,6 @@ var surfaces = {};
 var stackingOrder = [];
 var outstandingCommands = new Array();
 var inputSocket = null;
-var debugDecoding = false;
-var fakeInput = null;
-var showKeyboard = false;
-var showKeyboardChanged = false;
-var firstTouchDownId = null;
 
 var GDK_CROSSING_NORMAL = 0;
 var GDK_CROSSING_GRAB = 1;
@@ -145,9 +220,216 @@ function getButtonMask (button) {
     return 0;
 }
 
+function flushSurface(surface)
+{
+    var commands = surface.drawQueue;
+    surface.queue = [];
+    var context = surface.canvas.getContext("2d");
+    context.globalCompositeOperation = "source-over";
+    var i = 0;
+    for (i = 0; i < commands.length; i++) {
+	var cmd = commands[i];
+	switch (cmd.op) {
+	case 'i': // put image data surface
+	    context.globalCompositeOperation = "source-over";
+	    context.drawImage(cmd.img, cmd.x, cmd.y);
+	    break;
+
+	case 'b': // copy rects
+	    context.save();
+	    context.beginPath();
+
+	    var minx;
+	    var miny;
+	    var maxx;
+	    var maxy;
+	    for (var j = 0; j < cmd.rects.length; j++) {
+		var rect = cmd.rects[j];
+		context.rect(rect.x, rect.y, rect.w, rect.h);
+		if (j == 0) {
+		    minx = rect.x;
+		    miny = rect.y;
+		    maxx = rect.x + rect.w;
+		    maxy = rect.y + rect.h;
+		} else {
+		    if (rect.x < minx)
+			minx = rect.x;
+		    if (rect.y < miny)
+			miny = rect.y;
+		    if (rect.x + rect.w > maxx)
+			maxx = rect.x + rect.w;
+		    if (rect.y + rect.h > maxy)
+			maxy = rect.y + rect.h;
+		}
+	    }
+	    context.clip();
+	    context.globalCompositeOperation = "copy";
+	    context.drawImage(context.canvas,
+			      minx - cmd.dx, miny - cmd.dy, maxx - minx, maxy - miny,
+			      minx, miny, maxx - minx, maxy - miny);
+	    context.restore();
+	    break;
+
+	default:
+	    alert("Unknown drawing op " + cmd.op);
+	}
+    }
+}
+
+function ensureSurfaceInDocument(surface, doc)
+{
+    if (surface.document != doc) {
+	var oldCanvas = surface.canvas;
+	var canvas = doc.importNode(oldCanvas, false);
+	doc.body.appendChild(canvas);
+	canvas.surface = surface;
+	oldCanvas.parentNode.removeChild(oldCanvas);
+
+	surface.canvas = canvas;
+	if (surface.toplevelElement == oldCanvas)
+	    surface.toplevelElement = canvas;
+	surface.document = doc;
+    }
+}
+
 function sendConfigureNotify(surface)
 {
     sendInput("w", [surface.id, surface.x, surface.y, surface.width, surface.height]);
+}
+
+var windowGeometryTimeout = null;
+
+function updateBrowserWindowGeometry(win, alwaysSendConfigure) {
+    if (win.closed)
+	return;
+
+    var surface = win.surface;
+
+    var innerW = win.innerWidth;
+    var innerH = win.innerHeight;
+
+    var x = surface.x;
+    var y = surface.y;
+
+    if (win.mozInnerScreenX != undefined) {
+	x = win.mozInnerScreenX;
+	y = win.mozInnerScreenY;
+    } else if (win.screenTop != undefined) {
+	x = win.screenTop;
+	y = win.screenLeft;
+    } else {
+	alert("No implementation to get window position");
+    }
+
+    if (alwaysSendConfigure || x != surface.x || y != surface.y ||
+       innerW != surface.width || innerH != surface.height) {
+	var oldX = surface.x;
+	var oldY = surface.y;
+	surface.x = x;
+	surface.y = y;
+	if (surface.width != innerW || surface.height != innerH)
+	    resizeCanvas(surface.canvas, innerW, innerH);
+	surface.width = innerW;
+	surface.height = innerH;
+	sendConfigureNotify(surface);
+	for (id in surfaces) {
+	    var childSurface = surfaces[id];
+	    var transientToplevel = getTransientToplevel(childSurface);
+	    if (transientToplevel != null && transientToplevel == surface) {
+		childSurface.x += surface.x - oldX;
+		childSurface.y += surface.y - oldY;
+		sendConfigureNotify(childSurface);
+	    }
+	}
+    }
+}
+
+function browserWindowClosed(win) {
+    var surface = win.surface;
+
+    sendInput ("W", [surface.id]);
+    for (id in surfaces) {
+	var childSurface = surfaces[id];
+	var transientToplevel = getTransientToplevel(childSurface);
+	if (transientToplevel != null && transientToplevel == surface) {
+	    sendInput ("W", [childSurface.id]);
+	}
+    }
+}
+
+function registerWindow(win)
+{
+    toplevelWindows.push(win);
+    win.onresize = function(ev) { updateBrowserWindowGeometry(ev.target, false); };
+    if (!windowGeometryTimeout)
+	windowGeometryTimeout = setInterval(function () {
+						for (var i = 0; i < toplevelWindows.length; i++)
+						    updateBrowserWindowGeometry(toplevelWindows[i], false);
+					    }, 2000);
+    win.onunload = function(ev) { browserWindowClosed(ev.target.defaultView); };
+}
+
+function unregisterWindow(win)
+{
+    var i = toplevelWindows.indexOf(win);
+    if (i >= 0)
+	toplevelWindows.splice(i, 1);
+
+    if (windowGeometryTimeout && toplevelWindows.length == 0) {
+	clearInterval(windowGeometryTimeout);
+	windowGeometryTimeout = null;
+    }
+}
+
+function getTransientToplevel(surface)
+{
+    while (surface && surface.transientParent != 0) {
+	surface = surfaces[surface.transientParent];
+	if (surface && surface.window)
+	    return surface;
+    }
+    return null;
+}
+
+function getStyle(el, styleProp)
+{
+    if (el.currentStyle) {
+	return el.currentStyle[styleProp];
+    }  else if (window.getComputedStyle) {
+	var win = el.ownerDocument.defaultView;
+	return win.getComputedStyle(el, null).getPropertyValue(styleProp);
+    }
+    return undefined;
+}
+
+function parseOffset(value)
+{
+    var px = value.indexOf("px");
+    if (px > 0)
+	return parseInt(value.slice(0,px));
+    return 0;
+}
+
+function getFrameOffset(surface) {
+    var x = 0;
+    var y = 0;
+    var el = surface.canvas;
+    while (el != null && el != surface.frame) {
+	x += el.offsetLeft;
+	y += el.offsetTop;
+
+	/* For some reason the border is not includes in the offsets.. */
+	x += parseOffset(getStyle(el, "border-left-width"));
+	y += parseOffset(getStyle(el, "border-top-width"));
+
+	el = el.offsetParent;
+    }
+
+    /* Also include frame border as per above */
+    x += parseOffset(getStyle(el, "border-left-width"));
+    y += parseOffset(getStyle(el, "border-top-width"));
+
+    return {x: x, y: y};
 }
 
 var positionIndex = 0;
@@ -155,9 +437,12 @@ function cmdCreateSurface(id, x, y, width, height, isTemp)
 {
     var surface = { id: id, x: x, y:y, width: width, height: height, isTemp: isTemp };
     surface.positioned = isTemp;
+    surface.drawQueue = [];
     surface.transientParent = 0;
     surface.visible = false;
-    surface.imageData = null;
+    surface.window = null;
+    surface.document = document;
+    surface.frame = null;
 
     var canvas = document.createElement("canvas");
     canvas.width = width;
@@ -166,8 +451,36 @@ function cmdCreateSurface(id, x, y, width, height, isTemp)
     surface.canvas = canvas;
     var toplevelElement;
 
-    toplevelElement = canvas;
-    document.body.appendChild(canvas);
+    if (useToplevelWindows || isTemp) {
+	toplevelElement = canvas;
+	document.body.appendChild(canvas);
+    } else {
+	var frame = document.createElement("div");
+	frame.frameFor = surface;
+	frame.className = "frame-window";
+	surface.frame = frame;
+
+	var button = document.createElement("center");
+	button.closeFor = surface;
+	var X = document.createTextNode("\u00d7");
+	button.appendChild(X);
+	button.className = "frame-close";
+	frame.appendChild(button);
+
+	var contents = document.createElement("div");
+	contents.className = "frame-contents";
+	frame.appendChild(contents);
+
+	canvas.style["display"] = "block";
+	contents.appendChild(canvas);
+
+	toplevelElement = frame;
+	document.body.appendChild(frame);
+
+	surface.x = 100 + positionIndex * 10;
+	surface.y = 100 + positionIndex * 10;
+	positionIndex = (positionIndex + 1) % 20;
+    }
 
     surface.toplevelElement = toplevelElement;
     toplevelElement.style["position"] = "absolute";
@@ -177,6 +490,8 @@ function cmdCreateSurface(id, x, y, width, height, isTemp)
     toplevelElement.style["top"] = surface.y + "px";
     toplevelElement.style["display"] = "inline";
 
+    /* We hide the frame with visibility rather than display none
+     * so getFrameOffset still works with hidden windows. */
     toplevelElement.style["visibility"] = "hidden";
 
     surfaces[id] = surface;
@@ -196,11 +511,52 @@ function cmdShowSurface(id)
     var xOffset = surface.x;
     var yOffset = surface.y;
 
+    if (useToplevelWindows) {
+	var doc = document;
+	if (!surface.isTemp) {
+	    var options =
+		'width='+surface.width+',height='+surface.height+
+		',location=no,menubar=no,scrollbars=no,toolbar=no';
+	    if (surface.positioned)
+		options = options +
+		',left='+surface.x+',top='+surface.y+',screenX='+surface.x+',screenY='+surface.y;
+	    var win = window.open('','_blank', options);
+	    win.surface = surface;
+	    registerWindow(win);
+	    doc = win.document;
+	    doc.open();
+	    doc.write("<body></body>");
+	    setupDocument(doc);
+
+	    surface.window = win;
+	    xOffset = 0;
+	    yOffset = 0;
+	} else {
+	    var transientToplevel = getTransientToplevel(surface);
+	    if (transientToplevel) {
+		doc = transientToplevel.window.document;
+		xOffset = surface.x - transientToplevel.x;
+		yOffset = surface.y - transientToplevel.y;
+	    }
+	}
+
+	ensureSurfaceInDocument(surface, doc);
+    } else {
+	if (surface.frame) {
+	    var offset = getFrameOffset(surface);
+	    xOffset -= offset.x;
+	    yOffset -= offset.y;
+	}
+    }
+
     surface.toplevelElement.style["left"] = xOffset + "px";
     surface.toplevelElement.style["top"] = yOffset + "px";
     surface.toplevelElement.style["visibility"] = "visible";
 
     restackWindows();
+
+    if (surface.window)
+	updateBrowserWindowGeometry(surface.window, false);
 }
 
 function cmdHideSurface(id)
@@ -217,6 +573,15 @@ function cmdHideSurface(id)
     var element = surface.toplevelElement;
 
     element.style["visibility"] = "hidden";
+
+    // Import the canvas into the main document
+    ensureSurfaceInDocument(surface, document);
+
+    if (surface.window) {
+	unregisterWindow(surface.window);
+	surface.window.close();
+	surface.window = null;
+    }
 }
 
 function cmdSetTransientFor(id, parentId)
@@ -258,6 +623,12 @@ function moveToHelper(surface, position) {
     }
 }
 
+function moveToTop(surface) {
+    moveToHelper(surface);
+    restackWindows();
+}
+
+
 function cmdDeleteSurface(id)
 {
     if (grab.window == id)
@@ -269,6 +640,9 @@ function cmdDeleteSurface(id)
 	stackingOrder.splice(i, 1);
     var canvas = surface.canvas;
     canvas.parentNode.removeChild(canvas);
+    var frame = surface.frame;
+    if (frame)
+	frame.parentNode.removeChild(frame);
     delete surfaces[id];
 }
 
@@ -285,247 +659,57 @@ function cmdMoveResizeSurface(id, has_pos, x, y, has_size, w, h)
 	surface.height = h;
     }
 
+    /* Flush any outstanding draw ops before (possibly) changing size */
+    flushSurface(surface);
+
     if (has_size)
 	resizeCanvas(surface.canvas, w, h);
 
     if (surface.visible) {
-	if (has_pos) {
-	    var xOffset = surface.x;
-	    var yOffset = surface.y;
+	if (surface.window) {
+	    /* TODO: This moves the outer frame position, we really want the inner position.
+	     * However this isn't *strictly* invalid, as any WM could have done whatever it
+	     * wanted with the positioning of the window.
+	     */
+	    if (has_pos)
+		surface.window.moveTo(surface.x, surface.y);
+	    if (has_size)
+		resizeBrowserWindow(surface.window, w, h);
+	} else {
+	    if (has_pos) {
+		var xOffset = surface.x;
+		var yOffset = surface.y;
 
-	    var element = surface.canvas;
+		var transientToplevel = getTransientToplevel(surface);
+		if (transientToplevel) {
+		    xOffset = surface.x - transientToplevel.x;
+		    yOffset = surface.y - transientToplevel.y;
+		}
 
-	    element.style["left"] = xOffset + "px";
-	    element.style["top"] = yOffset + "px";
+		var element = surface.canvas;
+		if (surface.frame) {
+		    element = surface.frame;
+		    var offset = getFrameOffset(surface);
+		    xOffset -= offset.x;
+		    yOffset -= offset.y;
+		}
+
+		element.style["left"] = xOffset + "px";
+		element.style["top"] = yOffset + "px";
+	    }
 	}
     }
 
-    sendConfigureNotify(surface);
-}
-
-function cmdRaiseSurface(id)
-{
-    var surface = surfaces[id];
-
-    moveToHelper(surface);
-    restackWindows();
-}
-
-function cmdLowerSurface(id)
-{
-    var surface = surfaces[id];
-
-    moveToHelper(surface, 0);
-    restackWindows();
-}
-
-function copyRect(src, srcX, srcY, dest, destX, destY, width, height)
-{
-    // Clip to src
-    if (srcX + width > src.width)
-        width = src.width - srcX;
-    if (srcY + height > src.height)
-        height = src.height - srcY;
-
-    // Clip to dest
-    if (destX + width > dest.width)
-        width = dest.width - destX;
-    if (destY + height > dest.height)
-        height = dest.height - destY;
-
-    var srcRect = src.width * 4 * srcY + srcX * 4;
-    var destRect = dest.width * 4 * destY + destX * 4;
-
-    for (var i = 0; i < height; i++) {
-        var line = src.data.subarray(srcRect, srcRect + width *4);
-        dest.data.set(line, destRect);
-        srcRect += src.width * 4;
-        destRect += dest.width * 4;
+    if (surface.window) {
+	updateBrowserWindowGeometry(surface.window, true);
+    } else {
+	sendConfigureNotify(surface);
     }
 }
 
-
-function markRun(dest, start, length, r, g, b)
+function cmdFlushSurface(id)
 {
-    for (var i = start; i < start + length * 4; i += 4) {
-        dest[i+0] = dest[i+0] / 2 | 0 + r;
-        dest[i+1] = dest[i+1] / 2 | 0 + g;
-        dest[i+2] = dest[i+2] / 2 | 0 + b;
-    }
-}
-
-function markRect(src, srcX, srcY, dest, destX, destY, width, height, r, g, b)
-{
-    // Clip to src
-    if (srcX + width > src.width)
-        width = src.width - srcX;
-    if (srcY + height > src.height)
-        height = src.height - srcY;
-
-    // Clip to dest
-    if (destX + width > dest.width)
-        width = dest.width - destX;
-    if (destY + height > dest.height)
-        height = dest.height - destY;
-
-    var destRect = dest.width * 4 * destY + destX * 4;
-
-    for (var i = 0; i < height; i++) {
-        if (i == 0 || i == height-1)
-            markRun(dest.data, destRect, width, 0, 0, 0);
-        else {
-            markRun(dest.data, destRect, 1, 0 ,0, 0);
-            markRun(dest.data, destRect+4, width-2, r, g, b);
-            markRun(dest.data, destRect+4*width-4, 1, 0, 0, 0);
-        }
-        destRect += dest.width * 4;
-    }
-}
-
-function decodeBuffer(context, oldData, w, h, data, debug)
-{
-    var i, j;
-    var imageData = context.createImageData(w, h);
-
-    if (oldData != null) {
-        // Copy old frame into new buffer
-        copyRect(oldData, 0, 0, imageData, 0, 0, oldData.width, oldData.height);
-    }
-
-    var src = 0;
-    var dest = 0;
-
-    while (src < data.length)  {
-        var b = data[src++];
-        var g = data[src++];
-        var r = data[src++];
-        var alpha = data[src++];
-        var len, start;
-
-        if (alpha != 0) {
-            // Regular data is red
-            if (debug) {
-                r = r / 2 | 0 + 128;
-                g = g / 2 | 0;
-                b = r / 2 | 0;
-            }
-
-            imageData.data[dest++] = r;
-            imageData.data[dest++] = g;
-            imageData.data[dest++] = b;
-            imageData.data[dest++] = alpha;
-        } else {
-            var cmd = r & 0xf0;
-            switch (cmd) {
-            case 0x00: // Transparent pixel
-                //log("Got transparent");
-                imageData.data[dest++] = 0;
-                imageData.data[dest++] = 0;
-                imageData.data[dest++] = 0;
-                imageData.data[dest++] = 0;
-                break;
-
-            case 0x10: // Delta 0 run
-                len = (r & 0xf) << 16 | g << 8 | b;
-                //log("Got delta0, len: " + len);
-                dest += len * 4;
-                break;
-
-            case 0x20: // Block reference
-                var blockid = (r & 0xf) << 16 | g << 8 | b;
-
-                var block_stride = (oldData.width + 32 - 1) / 32 | 0;
-                var srcY = (blockid / block_stride | 0) * 32;
-                var srcX = (blockid % block_stride | 0) * 32;
-
-                b = data[src++];
-                g = data[src++];
-                r = data[src++];
-                alpha = data[src++];
-
-                var destX = alpha << 8 | r;
-                var destY = g << 8 | b;
-
-                copyRect(oldData, srcX, srcY, imageData, destX, destY, 32, 32);
-                if (debug) // blocks are green
-                    markRect(oldData, srcX, srcY, imageData, destX, destY, 32, 32, 0x00, 128, 0x00);
-
-                //log("Got block, id: " + blockid +  "(" + srcX +"," + srcY + ") at " + destX + "," + destY);
-
-                break;
-
-            case 0x30: // Color run
-                len = (r & 0xf) << 16 | g << 8 | b;
-                //log("Got color run, len: " + len);
-
-                b = data[src++];
-                g = data[src++];
-                r = data[src++];
-                alpha = data[src++];
-
-                start = dest;
-
-                for (i = 0; i < len; i++) {
-                    imageData.data[dest++] = r;
-                    imageData.data[dest++] = g;
-                    imageData.data[dest++] = b;
-                    imageData.data[dest++] = alpha;
-                }
-
-                if (debug) // Color runs are blue
-                    markRun(imageData.data, start, len, 0x00, 0x00, 128);
-
-                break;
-
-            case 0x40: // Delta run
-                len = (r & 0xf) << 16 | g << 8 | b;
-                //log("Got delta run, len: " + len);
-
-                b = data[src++];
-                g = data[src++];
-                r = data[src++];
-                alpha = data[src++];
-
-                start = dest;
-
-                for (i = 0; i < len; i++) {
-                    imageData.data[dest] = (imageData.data[dest] + r) & 0xff;
-                    dest++;
-                    imageData.data[dest] = (imageData.data[dest] + g) & 0xff;
-                    dest++;
-                    imageData.data[dest] = (imageData.data[dest] + b) & 0xff;
-                    dest++;
-                    imageData.data[dest] = (imageData.data[dest] + alpha) & 0xff;
-                    dest++;
-                }
-                if (debug) // Delta runs are violet
-                    markRun(imageData.data, start, len, 0xff, 0x00, 0xff);
-                break;
-
-            default:
-                alert("Unknown buffer commend " + cmd);
-            }
-        }
-    }
-
-    return imageData;
-}
-
-function cmdPutBuffer(id, w, h, compressed)
-{
-    var surface = surfaces[id];
-    var context = surface.canvas.getContext("2d");
-
-    var inflate = new Zlib.RawInflate(compressed);
-    var data = inflate.decompress();
-
-    var imageData = decodeBuffer (context, surface.imageData, w, h, data, debugDecoding);
-    context.putImageData(imageData, 0, 0);
-
-    if (debugDecoding)
-        imageData = decodeBuffer (context, surface.imageData, w, h, data, false);
-
-    surface.imageData = imageData;
+    flushSurface(surfaces[id]);
 }
 
 function cmdGrabPointer(id, ownerEvents)
@@ -541,24 +725,13 @@ function cmdUngrabPointer()
 	doUngrab();
 }
 
-var active = false;
 function handleCommands(cmd)
 {
-    if (!active) {
-        start();
-        active = true;
-    }
-
     while (cmd.pos < cmd.length) {
 	var id, x, y, w, h, q;
 	var command = cmd.get_char();
 	lastSerial = cmd.get_32();
 	switch (command) {
-	case 'D':
-	    alert ("disconnected");
-	    inputSocket = null;
-	    break;
-
 	case 's': // create new surface
 	    id = cmd.get_16();
 	    x = cmd.get_16s();
@@ -606,23 +779,49 @@ function handleCommands(cmd)
 	    cmdMoveResizeSurface(id, has_pos, x, y, has_size, w, h);
 	    break;
 
-	case 'r': // Raise a surface
-	    id = cmd.get_16();
-	    cmdRaiseSurface(id);
+	case 'i': // Put image data surface
+	    q = new Object();
+	    q.op = 'i';
+	    q.id = cmd.get_16();
+	    q.x = cmd.get_16();
+	    q.y = cmd.get_16();
+	    var url = cmd.get_image_url ();
+	    q.img = new Image();
+	    q.img.src = url;
+	    surfaces[q.id].drawQueue.push(q);
+	    if (!q.img.complete) {
+		q.img.onload = function() { cmd.free_image_url (url); handleOutstanding(); };
+		return false;
+	    }
+	    cmd.free_image_url (url);
 	    break;
 
-	case 'R': // Lower a surface
-	    id = cmd.get_16();
-	    cmdLowerSurface(id);
+	case 'b': // Copy rects
+	    q = new Object();
+	    q.op = 'b';
+	    q.id = cmd.get_16();
+	    var nrects = cmd.get_16();
+
+	    q.rects = [];
+	    for (var r = 0; r < nrects; r++) {
+		var rect = new Object();
+		rect.x = cmd.get_16();
+		rect.y = cmd.get_16();
+		rect.w = cmd.get_16();
+		rect.h = cmd.get_16();
+		q.rects.push (rect);
+	    }
+
+	    q.dx = cmd.get_16s();
+	    q.dy = cmd.get_16s();
+	    surfaces[q.id].drawQueue.push(q);
 	    break;
 
-	case 'b': // Put image buffer
+	case 'f': // Flush surface
 	    id = cmd.get_16();
-	    w = cmd.get_16();
-	    h = cmd.get_16();
-            var data = cmd.get_data();
-            cmdPutBuffer(id, w, h, data);
-            break;
+
+	    cmdFlushSurface(id);
+	    break;
 
 	case 'g': // Grab
 	    id = cmd.get_16();
@@ -634,12 +833,6 @@ function handleCommands(cmd)
 	case 'u': // Ungrab
 	    cmdUngrabPointer();
 	    break;
-
-        case 'k': // show keyboard
-            showKeyboard = cmd.get_16() != 0;
-            showKeyboardChanged = true;
-            break;
-
 	default:
 	    alert("Unknown op " + command);
 	}
@@ -657,6 +850,45 @@ function handleOutstanding()
 	}
     }
 }
+
+function TextCommands(message) {
+    this.data = message;
+    this.length = message.length;
+    this.pos = 0;
+}
+
+TextCommands.prototype.get_char = function() {
+    return this.data[this.pos++];
+};
+TextCommands.prototype.get_bool = function() {
+    return this.get_char() == '1';
+};
+TextCommands.prototype.get_flags = function() {
+    return this.get_char() - 48;
+}
+TextCommands.prototype.get_16 = function() {
+    var n = base64_16(this.data, this.pos);
+    this.pos = this.pos + 3;
+    return n;
+};
+TextCommands.prototype.get_16s = function() {
+    var n = base64_16s(this.data, this.pos);
+    this.pos = this.pos + 3;
+    return n;
+};
+TextCommands.prototype.get_32 = function() {
+    var n = base64_32(this.data, this.pos);
+    this.pos = this.pos + 6;
+    return n;
+};
+TextCommands.prototype.get_image_url = function() {
+    var size = this.get_32();
+    var url = this.data.slice(this.pos, this.pos + size);
+    this.pos = this.pos + size;
+    return url;
+};
+TextCommands.prototype.free_image_url = function(url) {
+};
 
 function BinCommands(message) {
     this.arraybuffer = message;
@@ -697,16 +929,24 @@ BinCommands.prototype.get_32 = function() {
     this.pos = this.pos + 4;
     return v;
 };
-BinCommands.prototype.get_data = function() {
+BinCommands.prototype.get_image_url = function() {
     var size = this.get_32();
-    var data = new Uint8Array (this.arraybuffer, this.pos, size);
+    var png_blob = new Blob ([this.arraybuffer.slice (this.pos, this.pos + size)], {type:"image/png"});
+    var url = URL.createObjectURL(png_blob, {oneTimeOnly: true});
     this.pos = this.pos + size;
-    return data;
+    return url;
+};
+BinCommands.prototype.free_image_url = function(url) {
+    URL.revokeObjectURL(url);
 };
 
 function handleMessage(message)
 {
-    var cmd = new BinCommands(message);
+    var cmd;
+    if (message instanceof ArrayBuffer)
+	cmd = new BinCommands(message);
+    else
+	cmd = new TextCommands(message);
     outstandingCommands.push(cmd);
     if (outstandingCommands.length == 1) {
 	handleOutstanding();
@@ -722,17 +962,9 @@ function getSurfaceId(ev) {
 
 function sendInput(cmd, args)
 {
-    if (inputSocket == null)
-        return;
-
-    var fullArgs = [cmd.charCodeAt(0), lastSerial, lastTimeStamp].concat(args);
-    var buffer = new ArrayBuffer(fullArgs.length * 4);
-    var view = new DataView(buffer);
-    fullArgs.forEach(function(arg, i) {
-        view.setInt32(i*4, arg, false);
-    });
-
-    inputSocket.send(buffer);
+    if (inputSocket != null) {
+	inputSocket.send(cmd + ([lastSerial, lastTimeStamp].concat(args)).join(","));
+    }
 }
 
 function getPositionsFromAbsCoord(absX, absY, relativeId) {
@@ -753,8 +985,13 @@ function getPositionsFromAbsCoord(absX, absY, relativeId) {
 
 function getPositionsFromEvent(ev, relativeId) {
     var absX, absY;
-    absX = ev.pageX;
-    absY = ev.pageY;
+    if (useToplevelWindows) {
+	absX = ev.screenX;
+	absY = ev.screenY;
+    } else {
+	absX = ev.pageX;
+	absY = ev.pageY;
+    }
     var res = getPositionsFromAbsCoord(absX, absY, relativeId);
 
     lastX = res.rootX;
@@ -773,16 +1010,6 @@ function getEffectiveEventTarget (id) {
     return id;
 }
 
-function updateKeyboardStatus() {
-    if (fakeInput != null && showKeyboardChanged) {
-        showKeyboardChanged = false;
-        if (showKeyboard)
-            fakeInput.focus();
-        else
-            fakeInput.blur();
-    }
-}
-
 function updateForEvent(ev) {
     lastState &= ~(GDK_SHIFT_MASK|GDK_CONTROL_MASK|GDK_MOD1_MASK);
     if (ev.shiftKey)
@@ -793,10 +1020,30 @@ function updateForEvent(ev) {
 	lastState |= GDK_MOD1_MASK;
 
     lastTimeStamp = ev.timeStamp;
+    if (ev.target.surface && ev.target.surface.window) {
+	var win = ev.target.surface.window;
+	updateBrowserWindowGeometry(win, false);
+    }
 }
 
 function onMouseMove (ev) {
     updateForEvent(ev);
+    if (localGrab) {
+	if (localGrab.type == "move") {
+	    var dx = ev.pageX - localGrab.lastX;
+	    var dy = ev.pageY - localGrab.lastY;
+	    var surface = localGrab.surface;
+	    surface.x += dx;
+	    surface.y += dy;
+	    var offset = getFrameOffset(surface);
+	    localGrab.frame.style["left"] = (surface.x - offset.x) + "px";
+	    localGrab.frame.style["top"] = (surface.y - offset.y) + "px";
+	    sendConfigureNotify(surface);
+	    localGrab.lastX = ev.pageX;
+	    localGrab.lastY = ev.pageY;
+	}
+	return;
+    }
     var id = getSurfaceId(ev);
     id = getEffectiveEventTarget (id);
     var pos = getPositionsFromEvent(ev, id);
@@ -806,6 +1053,14 @@ function onMouseMove (ev) {
 function onMouseOver (ev) {
     updateForEvent(ev);
 
+    if (!grab.window && ev.target.closeFor) {
+	ev.target.className = ev.target.className + " frame-hover";
+	if (ev.target.isDown)
+	    ev.target.className = ev.target.className + " frame-active";
+    }
+
+    if (localGrab)
+	return;
     var id = getSurfaceId(ev);
     realWindowWithMouse = id;
     id = getEffectiveEventTarget (id);
@@ -818,6 +1073,13 @@ function onMouseOver (ev) {
 
 function onMouseOut (ev) {
     updateForEvent(ev);
+    if (ev.target.closeFor) {
+	ev.target.className = ev.target.className.replace(" frame-hover", "");
+	if (ev.target.isDown)
+	    ev.target.className = ev.target.className.replace(" frame-active", "");
+    }
+    if (localGrab)
+	return;
     var id = getSurfaceId(ev);
     var origId = id;
     id = getEffectiveEventTarget (id);
@@ -871,11 +1133,33 @@ function onMouseDown (ev) {
     var id = getSurfaceId(ev);
     id = getEffectiveEventTarget (id);
 
+    if (id == 0 && ev.target.frameFor) { /* mouse click on frame */
+	localGrab = new Object();
+	localGrab.surface = ev.target.frameFor;
+	localGrab.type = "move";
+	localGrab.frame = ev.target;
+	localGrab.lastX = ev.pageX;
+	localGrab.lastY = ev.pageY;
+	moveToTop(localGrab.frame.frameFor);
+	return;
+    }
+
+    if (id == 0 && ev.target.closeFor) { /* mouse click on frame */
+	ev.target.isDown = true;
+	ev.target.className = ev.target.className + " frame-active";
+	localGrab = new Object();
+	localGrab.surface = ev.target.closeFor;
+	localGrab.type = "close";
+	localGrab.button = ev.target;
+	localGrab.lastX = ev.pageX;
+	localGrab.lastY = ev.pageY;
+	return;
+    }
+
     var pos = getPositionsFromEvent(ev, id);
     if (grab.window == null)
 	doGrab (id, false, true);
     sendInput ("b", [realWindowWithMouse, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, button]);
-    return false;
 }
 
 function onMouseUp (ev) {
@@ -886,12 +1170,32 @@ function onMouseUp (ev) {
     id = getEffectiveEventTarget (evId);
     var pos = getPositionsFromEvent(ev, id);
 
+    if (localGrab) {
+	realWindowWithMouse = evId;
+	if (windowWithMouse != id) {
+	    if (windowWithMouse != 0) {
+		sendInput ("l", [realWindowWithMouse, windowWithMouse, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, GDK_CROSSING_NORMAL]);
+	    }
+	    windowWithMouse = id;
+	    if (windowWithMouse != 0) {
+		sendInput ("e", [realWindowWithMouse, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, GDK_CROSSING_NORMAL]);
+	    }
+	}
+
+	if (localGrab.type == "close") {
+	    localGrab.button.isDown = false;
+	    localGrab.button.className = localGrab.button.className.replace( " frame-active", "");
+	    if (ev.target == localGrab.button)
+		sendInput ("W", [localGrab.surface.id]);
+	}
+	localGrab = null;
+	return;
+    }
+
     sendInput ("B", [realWindowWithMouse, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, button]);
 
     if (grab.window != null && grab.implicit)
 	doUngrab();
-
-    return false;
 }
 
 /* Some of the keyboard handling code is from noVNC and
@@ -2401,7 +2705,7 @@ function handleKeyPress(e) {
 
     keysym = getKeysym(ev);
 
-    // Modify the which attribute in the depressed keys list so
+    // Modify the the which attribute in the depressed keys list so
     // that the keyUp event will be able to have the character code
     // translation available.
     if (kdlen > 0) {
@@ -2437,16 +2741,22 @@ function handleKeyUp(e) {
 
 function onKeyDown (ev) {
     updateForEvent(ev);
+    if (localGrab)
+	return cancelEvent(ev);
     return handleKeyDown(ev);
 }
 
 function onKeyPress(ev) {
     updateForEvent(ev);
+    if (localGrab)
+	return cancelEvent(ev);
     return handleKeyPress(ev);
 }
 
 function onKeyUp (ev) {
     updateForEvent(ev);
+    if (localGrab)
+	return cancelEvent(ev);
     return handleKeyUp(ev);
 }
 
@@ -2466,97 +2776,20 @@ function cancelEvent(ev)
 function onMouseWheel(ev)
 {
     updateForEvent(ev);
+    if (localGrab)
+	return false;
     ev = ev ? ev : window.event;
 
     var id = getSurfaceId(ev);
     var pos = getPositionsFromEvent(ev, id);
 
-    var offset = ev.detail ? ev.detail : -ev.wheelDelta;
+    var offset = ev.detail ? ev.detail : ev.wheelDelta;
     var dir = 0;
     if (offset > 0)
 	dir = 1;
     sendInput ("s", [realWindowWithMouse, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, dir]);
 
     return cancelEvent(ev);
-}
-
-function onTouchStart(ev) {
-    event.preventDefault();
-
-    updateKeyboardStatus();
-    updateForEvent(ev);
-
-    for (var i = 0; i < ev.changedTouches.length; i++) {
-        var touch = ev.changedTouches.item(i);
-
-        var origId = getSurfaceId(touch);
-        var id = getEffectiveEventTarget (origId);
-        var pos = getPositionsFromEvent(touch, id);
-        var isEmulated = 0;
-
-        if (firstTouchDownId == null) {
-            firstTouchDownId = touch.identifier;
-            isEmulated = 1;
-
-            if (realWindowWithMouse != origId || id != windowWithMouse) {
-                if (id != 0) {
-                    sendInput ("l", [realWindowWithMouse, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, GDK_CROSSING_NORMAL]);
-                }
-
-                windowWithMouse = id;
-                realWindowWithMouse = origId;
-
-                sendInput ("e", [origId, id, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState, GDK_CROSSING_NORMAL]);
-            }
-        }
-
-        sendInput ("t", [0, id, touch.identifier, isEmulated, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState]);
-    }
-}
-
-function onTouchMove(ev) {
-    event.preventDefault();
-
-    updateKeyboardStatus();
-    updateForEvent(ev);
-
-    for (var i = 0; i < ev.changedTouches.length; i++) {
-        var touch = ev.changedTouches.item(i);
-
-        var origId = getSurfaceId(touch);
-        var id = getEffectiveEventTarget (origId);
-        var pos = getPositionsFromEvent(touch, id);
-
-        var isEmulated = 0;
-        if (firstTouchDownId == touch.identifier) {
-            isEmulated = 1;
-        }
-
-        sendInput ("t", [1, id, touch.identifier, isEmulated, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState]);
-    }
-}
-
-function onTouchEnd(ev) {
-    event.preventDefault();
-
-    updateKeyboardStatus();
-    updateForEvent(ev);
-
-    for (var i = 0; i < ev.changedTouches.length; i++) {
-        var touch = ev.changedTouches.item(i);
-
-        var origId = getSurfaceId(touch);
-        var id = getEffectiveEventTarget (origId);
-        var pos = getPositionsFromEvent(touch, id);
-
-        var isEmulated = 0;
-        if (firstTouchDownId == touch.identifier) {
-            isEmulated = 1;
-            firstTouchDownId = null;
-        }
-
-        sendInput ("t", [2, id, touch.identifier, isEmulated, pos.rootX, pos.rootY, pos.winX, pos.winY, lastState]);
-    }
 }
 
 function setupDocument(document)
@@ -2574,28 +2807,21 @@ function setupDocument(document)
     if (document.addEventListener) {
       document.addEventListener('DOMMouseScroll', onMouseWheel, false);
       document.addEventListener('mousewheel', onMouseWheel, false);
-      document.addEventListener('touchstart', onTouchStart, false);
-      document.addEventListener('touchmove', onTouchMove, false);
-      document.addEventListener('touchend', onTouchEnd, false);
     } else if (document.attachEvent) {
       element.attachEvent("onmousewheel", onMouseWheel);
     }
 }
 
-function start()
-{
-    setupDocument(document);
-
-    var w, h;
-    w = window.innerWidth;
-    h = window.innerHeight;
-    window.onresize = function(ev) {
-	var w, h;
-	w = window.innerWidth;
-	h = window.innerHeight;
-	sendInput ("d", [w, h]);
-    };
-    sendInput ("d", [w, h]);
+function newWS(loc) {
+    var ws = null;
+    if ("WebSocket" in window) {
+	ws = new WebSocket(loc, "broadway");
+    } else if ("MozWebSocket" in window) { // Firefox 6
+	ws = new MozWebSocket(loc);
+    } else {
+	alert("WebSocket not supported, broadway will not work!");
+    }
+    return ws;
 }
 
 function connect()
@@ -2604,38 +2830,49 @@ function connect()
     var query_string = url.split("?");
     if (query_string.length > 1) {
 	var params = query_string[1].split("&");
-
-        for (var i=0; i<params.length; i++) {
-            var pair = params[i].split("=");
-            if (pair[0] == "debug" && pair[1] == "decoding")
-                debugDecoding = true;
-        }
+	if (params[0].indexOf("toplevel") != -1)
+	    useToplevelWindows = true;
     }
 
-    var loc = window.location.toString().replace("http:", "ws:").replace("https:", "wss:");
+    var loc = window.location.toString().replace("http:", "ws:");
     loc = loc.substr(0, loc.lastIndexOf('/')) + "/socket";
-    ws = new WebSocket(loc, "broadway");
-    ws.binaryType = "arraybuffer";
+
+    var supports_binary = newWS (loc + "-test").binaryType == "blob";
+    if (supports_binary) {
+	ws = newWS (loc + "-bin");
+	ws.binaryType = "arraybuffer";
+    } else {
+	ws = newWS (loc);
+    }
 
     ws.onopen = function() {
 	inputSocket = ws;
+	var w, h;
+	if (useToplevelWindows) {
+	    w = window.screen.width;
+	    h = window.screen.height;
+	} else {
+	    w = window.innerWidth;
+	    h = window.innerHeight;
+	    window.onresize = function(ev) {
+		var w, h;
+		w = window.innerWidth;
+		h = window.innerHeight;
+		sendInput ("d", [w, h]);
+	    };
+	}
+	sendInput ("d", [w, h]);
     };
     ws.onclose = function() {
-	if (inputSocket != null)
-	    alert ("disconnected");
 	inputSocket = null;
     };
     ws.onmessage = function(event) {
 	handleMessage(event.data);
     };
 
-    var iOS = /(iPad|iPhone|iPod)/g.test( navigator.userAgent );
-    if (iOS) {
-        fakeInput = document.createElement("input");
-        fakeInput.type = "text";
-        fakeInput.style.position = "absolute";
-        fakeInput.style.left = "-1000px";
-        fakeInput.style.top = "-1000px";
-        document.body.appendChild(fakeInput);
-    }
+    setupDocument(document);
+    window.onunload = function (ev) {
+	for (var i = 0; i < toplevelWindows.length; i++)
+	    toplevelWindows[i].close();
+    };
 }

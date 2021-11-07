@@ -337,8 +337,6 @@
 
 - (BOOL)trackManualMove
 {
-  GdkWindow *window = [[self contentView] gdkWindow];
-  GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (window->impl);
   NSPoint currentLocation;
   NSPoint newOrigin;
   NSRect screenFrame = [[NSScreen mainScreen] visibleFrame];
@@ -352,21 +350,17 @@
   newOrigin.y = currentLocation.y - initialMoveLocation.y;
 
   /* Clamp vertical position to below the menu bar. */
-  if (newOrigin.y + windowFrame.size.height - impl->shadow_top > screenFrame.origin.y + screenFrame.size.height)
-    newOrigin.y = screenFrame.origin.y + screenFrame.size.height - windowFrame.size.height + impl->shadow_top;
+  if (newOrigin.y + windowFrame.size.height > screenFrame.origin.y + screenFrame.size.height)
+    newOrigin.y = screenFrame.origin.y + screenFrame.size.height - windowFrame.size.height;
 
   [self setFrameOrigin:newOrigin];
 
   return YES;
 }
 
-/* Used by gdkevents-quartz.c to decide if our sendEvent() handler above
- * will see the event or if it will be subjected to standard processing
- * by GDK.
-*/
--(BOOL)isInManualResizeOrMove
+-(BOOL)isInManualResize
 {
-  return inManualResize || inManualMove;
+  return inManualResize;
 }
 
 -(void)beginManualMove
@@ -653,24 +647,5 @@ update_context_from_dragging_info (id <NSDraggingInfo> sender)
   g_object_unref (_gdk_quartz_drag_source_context);
   _gdk_quartz_drag_source_context = NULL;
 }
-
-#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
-
-- (void)setStyleMask:(NSUInteger)styleMask
-{
-  gboolean was_fullscreen;
-  gboolean is_fullscreen;
-
-  was_fullscreen = (([self styleMask] & NSFullScreenWindowMask) != 0);
-
-  [super setStyleMask:styleMask];
-
-  is_fullscreen = (([self styleMask] & NSFullScreenWindowMask) != 0);
-
-  if (was_fullscreen != is_fullscreen)
-    _gdk_quartz_window_update_fullscreen_state ([[self contentView] gdkWindow]);
-}
-
-#endif
 
 @end

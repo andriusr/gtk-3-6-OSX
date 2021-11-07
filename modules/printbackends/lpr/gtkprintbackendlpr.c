@@ -139,7 +139,7 @@ gtk_print_backend_lpr_get_type (void)
  * implements the #GtkPrintBackend interface with direct access to
  * the filesystem using Unix/Linux API calls
  *
- * Returns: the new #GtkPrintBackendLpr object
+ * Return value: the new #GtkPrintBackendLpr object
  **/
 GtkPrintBackend *
 gtk_print_backend_lpr_new (void)

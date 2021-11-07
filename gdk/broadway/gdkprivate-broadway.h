@@ -40,11 +40,27 @@
 #include "gdkbroadwaywindow.h"
 
 void _gdk_broadway_resync_windows (void);
+void _gdk_broadway_windowing_init (void);
+
+gchar * _gdk_broadway_display_manager_get_atom_name (GdkDisplayManager *manager,
+						     GdkAtom atom);
+void _gdk_broadway_display_manager_add_display (GdkDisplayManager *manager,
+						GdkDisplay        *display);
+void _gdk_broadway_display_manager_remove_display (GdkDisplayManager *manager,
+						   GdkDisplay        *display);
+GdkAtom _gdk_broadway_display_manager_atom_intern_static_string (GdkDisplayManager *manager,
+								 const gchar *atom_name);
+GdkAtom _gdk_broadway_display_manager_atom_intern (GdkDisplayManager *manager,
+						   const gchar *atom_name, 
+						   gboolean     only_if_exists);
+
 
 void     _gdk_broadway_window_register_dnd (GdkWindow      *window);
 GdkDragContext * _gdk_broadway_window_drag_begin (GdkWindow *window,
 						  GdkDevice *device,
 						  GList     *targets);
+gboolean _gdk_broadway_window_queue_antiexpose  (GdkWindow *window,
+						 cairo_region_t *area);
 void     _gdk_broadway_window_translate         (GdkWindow *window,
 						 cairo_region_t *area,
 						 gint       dx,
@@ -76,8 +92,6 @@ gboolean _gdk_broadway_moveresize_configure_done (GdkDisplay *display,
 
 void     _gdk_broadway_selection_window_destroyed (GdkWindow *window);
 void     _gdk_broadway_window_grab_check_destroy (GdkWindow *window);
-void     _gdk_broadway_window_grab_check_unmap (GdkWindow *window,
-						gulong     serial);
 
 void _gdk_keymap_keys_changed     (GdkDisplay      *display);
 gint _gdk_broadway_get_group_for_state (GdkDisplay      *display,
@@ -86,6 +100,8 @@ void _gdk_keymap_add_virtual_modifiers_compat (GdkKeymap       *keymap,
                                                GdkModifierType *modifiers);
 gboolean _gdk_keymap_key_is_modifier   (GdkKeymap       *keymap,
 					guint            keycode);
+
+void _gdk_broadway_initialize_locale (void);
 
 void _gdk_broadway_screen_events_init   (GdkScreen *screen);
 GdkVisual *_gdk_broadway_screen_get_system_visual (GdkScreen * screen);
@@ -110,7 +126,8 @@ GList *_gdk_broadway_screen_list_visuals (GdkScreen *screen);
 void _gdk_broadway_screen_size_changed (GdkScreen *screen, 
 					BroadwayInputScreenResizeNotify *msg);
 
-void _gdk_broadway_events_got_input      (BroadwayInputMsg *message);
+void _gdk_broadway_events_got_input      (GdkDisplay *display,
+					  BroadwayInputMsg *message);
 
 void _gdk_broadway_screen_init_root_window (GdkScreen *screen);
 void _gdk_broadway_screen_init_visuals (GdkScreen *screen);
@@ -123,10 +140,10 @@ GdkCursor*_gdk_broadway_display_get_cursor_for_type (GdkDisplay    *display,
 						     GdkCursorType  cursor_type);
 GdkCursor*_gdk_broadway_display_get_cursor_for_name (GdkDisplay  *display,
 						     const gchar *name);
-GdkCursor *_gdk_broadway_display_get_cursor_for_surface (GdkDisplay *display,
-							 cairo_surface_t *surface,
-							 gdouble     x,
-							 gdouble     y);
+GdkCursor *_gdk_broadway_display_get_cursor_for_pixbuf (GdkDisplay *display,
+							GdkPixbuf  *pixbuf,
+							gint        x,
+							gint        y);
 gboolean _gdk_broadway_display_supports_cursor_alpha (GdkDisplay *display);
 gboolean _gdk_broadway_display_supports_cursor_color (GdkDisplay *display);
 void _gdk_broadway_display_get_default_cursor_size (GdkDisplay *display,
@@ -201,6 +218,9 @@ void _gdk_broadway_window_resize_surface        (GdkWindow *window);
 void _gdk_broadway_cursor_update_theme (GdkCursor *cursor);
 void _gdk_broadway_cursor_display_finalize (GdkDisplay *display);
 
+#define GDK_SCREEN_DISPLAY(screen)    (GDK_BROADWAY_SCREEN (screen)->display)
+#define GDK_WINDOW_SCREEN(win)	      (GDK_WINDOW_IMPL_BROADWAY (((GdkWindow *)win)->impl)->screen)
+#define GDK_WINDOW_DISPLAY(win)       (GDK_BROADWAY_SCREEN (GDK_WINDOW_SCREEN (win))->display)
 #define GDK_WINDOW_IS_BROADWAY(win)   (GDK_IS_WINDOW_IMPL_BROADWAY (((GdkWindow *)win)->impl))
 
 #endif /* __GDK_PRIVATE_BROADWAY_H__ */

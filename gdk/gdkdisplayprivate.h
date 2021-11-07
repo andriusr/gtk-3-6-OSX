@@ -31,7 +31,17 @@ G_BEGIN_DECLS
 
 typedef struct _GdkDisplayClass GdkDisplayClass;
 
-/* Tracks information about the device grab on this display */
+/* Tracks information about the keyboard grab on this display */
+typedef struct
+{
+  GdkWindow *window;
+  GdkWindow *native_window;
+  gulong serial;
+  gboolean owner_events;
+  guint32 time;
+} GdkKeyboardGrabInfo;
+
+/* Tracks information about the pointer grab on this display */
 typedef struct
 {
   GdkWindow *window;
@@ -100,9 +110,8 @@ struct _GdkDisplay
    * is part of a double-click or triple-click
    */
   GHashTable *multiple_click_info;
+  guint double_click_time;  /* Maximum time between clicks in msecs */
   GdkDevice *core_pointer;  /* Core pointer device */
-
-  guint event_pause_count;       /* How many times events are blocked */
 
   guint closed             : 1;  /* Whether this display has been closed */
 
@@ -114,7 +123,6 @@ struct _GdkDisplay
   GHashTable *pointers_info;  /* GdkPointerWindowInfo for each device */
   guint32 last_event_time;    /* Last reported event time from server */
 
-  guint double_click_time;  /* Maximum time between clicks in msecs */
   guint double_click_distance;   /* Maximum distance between clicks in pixels */
 };
 
@@ -125,13 +133,15 @@ struct _GdkDisplayClass
   GType window_type;          /* type for native windows for this display, set in class_init */
 
   const gchar *              (*get_name)           (GdkDisplay *display);
+  gint                       (*get_n_screens)      (GdkDisplay *display);
+  GdkScreen *                (*get_screen)         (GdkDisplay *display,
+                                                    gint        screen_num);
   GdkScreen *                (*get_default_screen) (GdkDisplay *display);
   void                       (*beep)               (GdkDisplay *display);
   void                       (*sync)               (GdkDisplay *display);
   void                       (*flush)              (GdkDisplay *display);
   gboolean                   (*has_pending)        (GdkDisplay *display);
   void                       (*queue_events)       (GdkDisplay *display);
-  void                       (*make_default)       (GdkDisplay *display);
   GdkWindow *                (*get_default_group)  (GdkDisplay *display);
   gboolean                   (*supports_selection_notification) (GdkDisplay *display);
   gboolean                   (*request_selection_notification)  (GdkDisplay *display,
@@ -159,10 +169,10 @@ struct _GdkDisplayClass
                                                          GdkCursorType  type);
   GdkCursor *                (*get_cursor_for_name)     (GdkDisplay    *display,
                                                          const gchar   *name);
-  GdkCursor *                (*get_cursor_for_surface)  (GdkDisplay    *display,
-                                                         cairo_surface_t *surface,
-                                                         gdouble          x,
-                                                         gdouble          y);
+  GdkCursor *                (*get_cursor_for_pixbuf)   (GdkDisplay    *display,
+                                                         GdkPixbuf     *pixbuf,
+                                                         gint           x,
+                                                         gint           y);
 
   GList *                    (*list_devices)       (GdkDisplay *display);
   GdkAppLaunchContext *      (*get_app_launch_context) (GdkDisplay *display);
@@ -226,7 +236,6 @@ struct _GdkDisplayClass
                                                         const gchar    *text);
 
   /* Signals */
-  void                   (*opened)                     (GdkDisplay     *display);
   void (*closed) (GdkDisplay *display,
                   gboolean    is_error);
 };
@@ -287,8 +296,6 @@ void                _gdk_display_pointer_info_foreach (GdkDisplay       *display
                                                        GdkDisplayPointerInfoForeach func,
                                                        gpointer          user_data);
 gulong              _gdk_display_get_next_serial      (GdkDisplay       *display);
-void                _gdk_display_pause_events         (GdkDisplay       *display);
-void                _gdk_display_unpause_events       (GdkDisplay       *display);
 void                _gdk_display_event_data_copy      (GdkDisplay       *display,
                                                        const GdkEvent   *event,
                                                        GdkEvent         *new_event);

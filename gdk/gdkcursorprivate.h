@@ -47,9 +47,7 @@ struct _GdkCursorClass
 {
   GObjectClass parent_class;
 
-  cairo_surface_t * (* get_surface) (GdkCursor *cursor,
-				     gdouble   *x_hot,
-				     gdouble   *y_hot);
+  GdkPixbuf *   (* get_image)   (GdkCursor *    cursor);
 };
 
 G_END_DECLS

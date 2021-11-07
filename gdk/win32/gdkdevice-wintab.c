@@ -40,16 +40,16 @@ static void gdk_device_wintab_set_window_cursor (GdkDevice *device,
                                                  GdkCursor *cursor);
 static void gdk_device_wintab_warp (GdkDevice *device,
                                     GdkScreen *screen,
-                                    gdouble   x,
-                                    gdouble   y);
+                                    gint       x,
+                                    gint       y);
 static void gdk_device_wintab_query_state (GdkDevice        *device,
                                            GdkWindow        *window,
                                            GdkWindow       **root_window,
                                            GdkWindow       **child_window,
-                                           gdouble          *root_x,
-                                           gdouble          *root_y,
-                                           gdouble          *win_x,
-                                           gdouble          *win_y,
+                                           gint             *root_x,
+                                           gint             *root_y,
+                                           gint             *win_x,
+                                           gint             *win_y,
                                            GdkModifierType  *mask);
 static GdkGrabStatus gdk_device_wintab_grab   (GdkDevice     *device,
                                                GdkWindow     *window,
@@ -61,8 +61,8 @@ static GdkGrabStatus gdk_device_wintab_grab   (GdkDevice     *device,
 static void          gdk_device_wintab_ungrab (GdkDevice     *device,
                                                guint32        time_);
 static GdkWindow * gdk_device_wintab_window_at_position (GdkDevice       *device,
-                                                         gdouble         *win_x,
-                                                         gdouble         *win_y,
+                                                         gint            *win_x,
+                                                         gint            *win_y,
                                                          GdkModifierType *mask,
                                                          gboolean         get_toplevel);
 static void      gdk_device_wintab_select_window_events (GdkDevice       *device,
@@ -91,6 +91,9 @@ gdk_device_wintab_class_init (GdkDeviceWintabClass *klass)
 static void
 gdk_device_wintab_init (GdkDeviceWintab *device_wintab)
 {
+  GdkDevice *device;
+
+  device = GDK_DEVICE (device_wintab);
 }
 
 static gboolean
@@ -167,8 +170,8 @@ gdk_device_wintab_set_window_cursor (GdkDevice *device,
 static void
 gdk_device_wintab_warp (GdkDevice *device,
                         GdkScreen *screen,
-                        gdouble   x,
-                        gdouble   y)
+                        gint       x,
+                        gint       y)
 {
 }
 
@@ -177,10 +180,10 @@ gdk_device_wintab_query_state (GdkDevice        *device,
                                GdkWindow        *window,
                                GdkWindow       **root_window,
                                GdkWindow       **child_window,
-                               gdouble          *root_x,
-                               gdouble          *root_y,
-                               gdouble          *win_x,
-                               gdouble          *win_y,
+                               gint             *root_x,
+                               gint             *root_y,
+                               gint             *win_x,
+                               gint             *win_y,
                                GdkModifierType  *mask)
 {
   GdkDeviceWintab *device_wintab;
@@ -265,8 +268,8 @@ gdk_device_wintab_ungrab (GdkDevice *device,
 
 static GdkWindow *
 gdk_device_wintab_window_at_position (GdkDevice       *device,
-                                      gdouble         *win_x,
-                                      gdouble         *win_y,
+                                      gint            *win_x,
+                                      gint            *win_y,
                                       GdkModifierType *mask,
                                       gboolean         get_toplevel)
 {

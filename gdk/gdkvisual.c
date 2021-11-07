@@ -36,15 +36,13 @@
  * the way the bits are stored in memory. For example, a piece of display
  * hardware might support 24-bit color, 16-bit color, or 8-bit color;
  * meaning 24/16/8-bit pixel sizes. For a given pixel size, pixels can
- * be in different formats; for example the “red” element of an RGB pixel
+ * be in different formats; for example the "red" element of an RGB pixel
  * may be in the top 8 bits of the pixel, or may be in the lower 4 bits.
  *
  * There are several standard visuals. The visual returned by
- * gdk_screen_get_system_visual() is the system’s default visual, and
- * the visual returned by gdk_screen_get_rgba_visual() should be used for
- * creating windows with an alpha channel.
+ * gdk_screen_get_system_visual() is the system's default visual.
  *
- * A number of functions are provided for determining the “best” available
+ * A number of functions are provided for determining the "best" available
  * visual. For the purposes of making this determination, higher bit depths
  * are considered better, and for visuals of the same bit depth,
  * %GDK_VISUAL_PSEUDO_COLOR is preferred at 8bpp, otherwise, the visual
@@ -84,9 +82,9 @@ gdk_visual_class_init (GdkVisualClass *visual_class)
  * For example, a visual might support 24-bit color, or 8-bit color,
  * and might expect pixels to be in a certain format.
  *
- * Call g_list_free() on the return value when you’re finished with it.
+ * Call g_list_free() on the return value when you're finished with it.
  *
- * Returns: (transfer container) (element-type GdkVisual):
+ * Return value: (transfer container) (element-type GdkVisual):
  *     a list of visuals; the list must be freed, but not its contents
  */
 GList*
@@ -98,11 +96,11 @@ gdk_list_visuals (void)
 /**
  * gdk_visual_get_system:
  *
- * Get the system’s default visual for the default GDK screen.
+ * Get the system's default visual for the default GDK screen.
  * This is the visual for the root window of the display.
  * The return value should not be freed.
  *
- * Returns: (transfer none): system visual
+ * Return value: (transfer none): system visual
  */
 GdkVisual*
 gdk_visual_get_system (void)
@@ -113,11 +111,11 @@ gdk_visual_get_system (void)
 /**
  * gdk_visual_get_best_depth:
  *
- * Get the best available depth for the default GDK screen.  “Best”
- * means “largest,” i.e. 32 preferred over 24 preferred over 8 bits
+ * Get the best available depth for the default GDK screen.  "Best"
+ * means "largest," i.e. 32 preferred over 24 preferred over 8 bits
  * per pixel.
  *
- * Returns: best available depth
+ * Return value: best available depth
  */
 gint
 gdk_visual_get_best_depth (void)
@@ -132,7 +130,7 @@ gdk_visual_get_best_depth (void)
  *
  * Return the best available visual type for the default GDK screen.
  *
- * Returns: best visual type
+ * Return value: best visual type
  */
 GdkVisualType
 gdk_visual_get_best_type (void)
@@ -148,7 +146,7 @@ gdk_visual_get_best_type (void)
  * Get the visual with the most available colors for the default
  * GDK screen. The return value should not be freed.
  *
- * Returns: (transfer none): best visual
+ * Return value: (transfer none): best visual
  */
 GdkVisual*
 gdk_visual_get_best (void)
@@ -167,7 +165,7 @@ gdk_visual_get_best (void)
  * over grayscale or fixed-colormap visuals. The return value should
  * not be freed. %NULL may be returned if no visual supports @depth.
  *
- * Returns: (transfer none): best visual for the given depth
+ * Return value: (transfer none): best visual for the given depth
  */
 GdkVisual*
 gdk_visual_get_best_with_depth (gint depth)
@@ -186,7 +184,7 @@ gdk_visual_get_best_with_depth (gint depth)
  * should not be freed. %NULL may be returned if no visual has type
  * @visual_type.
  *
- * Returns: (transfer none): best visual of the given type
+ * Return value: (transfer none): best visual of the given type
  */
 GdkVisual*
 gdk_visual_get_best_with_type (GdkVisualType visual_type)
@@ -205,8 +203,8 @@ gdk_visual_get_best_with_type (GdkVisualType visual_type)
  * Combines gdk_visual_get_best_with_depth() and
  * gdk_visual_get_best_with_type().
  *
- * Returns: (nullable) (transfer none): best visual with both @depth
- *     and @visual_type, or %NULL if none
+ * Return value: (transfer none): best visual with both @depth and
+ *     @visual_type, or %NULL if none
  */
 GdkVisual*
 gdk_visual_get_best_with_both (gint          depth,
@@ -224,7 +222,7 @@ gdk_visual_get_best_with_both (gint          depth,
  * @count: return location for number of available depths
  *
  * This function returns the available bit depths for the default
- * screen. It’s equivalent to listing the visuals
+ * screen. It's equivalent to listing the visuals
  * (gdk_list_visuals()) and then looking at the depth field in each
  * visual, removing duplicates.
  *
@@ -246,7 +244,7 @@ gdk_query_depths (gint **depths,
  * @count: return location for the number of available visual types
  *
  * This function returns the available visual types for the default
- * screen. It’s equivalent to listing the visuals
+ * screen. It's equivalent to listing the visuals
  * (gdk_list_visuals()) and then looking at the type field in each
  * visual, removing duplicates.
  *
@@ -267,7 +265,7 @@ gdk_query_visual_types (GdkVisualType **visual_types,
  *
  * Returns the type of visual this is (PseudoColor, TrueColor, etc).
  *
- * Returns: A #GdkVisualType stating the type of @visual.
+ * Return value: A #GdkVisualType stating the type of @visual.
  *
  * Since: 2.22
  */
@@ -285,7 +283,7 @@ gdk_visual_get_visual_type (GdkVisual *visual)
  *
  * Returns the bit depth of this visual.
  *
- * Returns: The bit depth of this visual.
+ * Return value: The bit depth of this visual.
  *
  * Since: 2.22
  */
@@ -303,7 +301,7 @@ gdk_visual_get_depth (GdkVisual *visual)
  *
  * Returns the byte order of this visual.
  *
- * Returns: A #GdkByteOrder stating the byte order of @visual.
+ * Return value: A #GdkByteOrder stating the byte order of @visual.
  *
  * Since: 2.22
  */
@@ -321,7 +319,7 @@ gdk_visual_get_byte_order (GdkVisual *visual)
  *
  * Returns the size of a colormap for this visual.
  *
- * Returns: The size of a colormap that is suitable for @visual.
+ * Return value: The size of a colormap that is suitable for @visual.
  *
  * Since: 2.22
  */
@@ -339,7 +337,7 @@ gdk_visual_get_colormap_size (GdkVisual *visual)
  *
  * Returns the number of significant bits per red, green and blue value.
  *
- * Returns: The number of significant bits per color value for @visual.
+ * Return value: The number of significant bits per color value for @visual.
  *
  * Since: 2.22
  */
@@ -359,8 +357,8 @@ gdk_visual_get_bits_per_rgb (GdkVisual *visual)
  * @precision: (out) (allow-none): A pointer to a #gint to be filled in, or %NULL
  *
  * Obtains values that are needed to calculate red pixel values in TrueColor
- * and DirectColor. The “mask” is the significant bits within the pixel.
- * The “shift” is the number of bits left we must shift a primary for it
+ * and DirectColor. The "mask" is the significant bits within the pixel.
+ * The "shift" is the number of bits left we must shift a primary for it
  * to be in position (according to the "mask"). Finally, "precision" refers
  * to how much precision the pixel value contains for a particular primary.
  *
@@ -392,8 +390,8 @@ gdk_visual_get_red_pixel_details (GdkVisual *visual,
  * @precision: (out) (allow-none): A pointer to a #gint to be filled in, or %NULL
  *
  * Obtains values that are needed to calculate green pixel values in TrueColor
- * and DirectColor. The “mask” is the significant bits within the pixel.
- * The “shift” is the number of bits left we must shift a primary for it
+ * and DirectColor. The "mask" is the significant bits within the pixel.
+ * The "shift" is the number of bits left we must shift a primary for it
  * to be in position (according to the "mask"). Finally, "precision" refers
  * to how much precision the pixel value contains for a particular primary.
  *
@@ -425,8 +423,8 @@ gdk_visual_get_green_pixel_details (GdkVisual *visual,
  * @precision: (out) (allow-none): A pointer to a #gint to be filled in, or %NULL
  *
  * Obtains values that are needed to calculate blue pixel values in TrueColor
- * and DirectColor. The “mask” is the significant bits within the pixel.
- * The “shift” is the number of bits left we must shift a primary for it
+ * and DirectColor. The "mask" is the significant bits within the pixel.
+ * The "shift" is the number of bits left we must shift a primary for it
  * to be in position (according to the "mask"). Finally, "precision" refers
  * to how much precision the pixel value contains for a particular primary.
  *
@@ -456,7 +454,7 @@ gdk_visual_get_blue_pixel_details (GdkVisual *visual,
  *
  * Gets the screen to which this visual belongs
  *
- * Returns: (transfer none): the screen to which this visual belongs.
+ * Return value: (transfer none): the screen to which this visual belongs.
  *
  * Since: 2.2
  */

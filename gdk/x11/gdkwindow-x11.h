@@ -68,13 +68,11 @@ struct _GdkWindowImplX11
   GdkCursor *cursor;
   GHashTable *device_cursor;
 
+  gint8 toplevel_window_type;
   guint no_bg : 1;        /* Set when the window background is temporarily
                            * unset during resizing and scaling */
   guint override_redirect : 1;
-  guint frame_clock_connected : 1;
-  guint frame_sync_enabled : 1;
-
-  gint window_scale;
+  guint use_synchronized_configure : 1;
 
   cairo_surface_t *cairo_surface;
 
@@ -128,17 +126,7 @@ struct _GdkToplevelX11
   /* Set if the WM is presenting us as focused, i.e. with active decorations
    */
   guint have_focused : 1;
-
-  guint in_frame : 1;
-
-  /* If we're expecting a response from the compositor after painting a frame */
-  guint frame_pending : 1;
-
-  /* Whether pending_counter_value/configure_counter_value are updates
-   * to the extended update counter */
-  guint pending_counter_value_is_extended : 1;
-  guint configure_counter_value_is_extended : 1;
-
+  
   gulong map_serial;	/* Serial of last transition from unmapped */
   
   cairo_surface_t *icon_pixmap;
@@ -153,23 +141,14 @@ struct _GdkToplevelX11
    * that might not even be part of this app
    */
   Window focus_window;
-
-  GdkWindowHints last_geometry_hints_mask;
-  GdkGeometry last_geometry_hints;
-  
+ 
 #ifdef HAVE_XSYNC
   XID update_counter;
-  XID extended_update_counter;
-  gint64 pending_counter_value; /* latest _NET_WM_SYNC_REQUEST value received */
-  gint64 configure_counter_value; /* Latest _NET_WM_SYNC_REQUEST value received
-				 * where we have also seen the corresponding
-				 * ConfigureNotify
-				 */
-  gint64 current_counter_value;
-
-  /* After a _NET_WM_FRAME_DRAWN message, this is the soonest that we think
-   * frame after will be presented */
-  gint64 throttled_presentation_time;
+  XSyncValue pending_counter_value; /* latest _NET_WM_SYNC_REQUEST value received */
+  XSyncValue current_counter_value; /* Latest _NET_WM_SYNC_REQUEST value received
+				     * where we have also seen the corresponding
+				     * ConfigureNotify
+				     */
 #endif
 };
 
@@ -177,8 +156,6 @@ GType gdk_window_impl_x11_get_type (void);
 
 void            gdk_x11_window_set_user_time        (GdkWindow *window,
 						     guint32    timestamp);
-void            gdk_x11_window_set_frame_sync_enabled (GdkWindow *window,
-                                                       gboolean   frame_sync_enabled);
 
 GdkToplevelX11 *_gdk_x11_window_get_toplevel        (GdkWindow *window);
 void            _gdk_x11_window_tmp_unset_bg        (GdkWindow *window,
@@ -191,8 +168,6 @@ void            _gdk_x11_window_tmp_reset_parent_bg (GdkWindow *window);
 GdkCursor      *_gdk_x11_window_get_cursor          (GdkWindow *window);
 
 void            _gdk_x11_window_update_size         (GdkWindowImplX11 *impl);
-void            _gdk_x11_window_set_window_scale    (GdkWindow *window,
-						     int        scale);
 
 G_END_DECLS
 

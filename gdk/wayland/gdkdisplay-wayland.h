@@ -26,8 +26,15 @@
 #include <stdint.h>
 #include <wayland-client.h>
 #include <wayland-cursor.h>
-#include <gdk/wayland/gtk-shell-client-protocol.h>
-#include <gdk/wayland/xdg-shell-client-protocol.h>
+
+#ifdef GDK_WAYLAND_USE_EGL
+#include <wayland-egl.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
+#include <cairo-gl.h>
+#endif
 
 #include <glib.h>
 #include <gdk/gdkkeys.h>
@@ -39,12 +46,23 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GdkWaylandSelection GdkWaylandSelection;
+typedef struct _GdkWaylandDisplay GdkWaylandDisplay;
+typedef struct _GdkWaylandDisplayClass GdkWaylandDisplayClass;
+
+#define GDK_TYPE_WAYLAND_DISPLAY              (_gdk_wayland_display_get_type())
+#define GDK_WAYLAND_DISPLAY(object)           (G_TYPE_CHECK_INSTANCE_CAST ((object), GDK_TYPE_WAYLAND_DISPLAY, GdkWaylandDisplay))
+#define GDK_WAYLAND_DISPLAY_CLASS(klass)      (G_TYPE_CHECK_CLASS_CAST ((klass), GDK_TYPE_WAYLAND_DISPLAY, GdkWaylandDisplayClass))
+#define GDK_IS_WAYLAND_DISPLAY(object)        (G_TYPE_CHECK_INSTANCE_TYPE ((object), GDK_TYPE_WAYLAND_DISPLAY))
+#define GDK_IS_WAYLAND_DISPLAY_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GDK_TYPE_WAYLAND_DISPLAY))
+#define GDK_WAYLAND_DISPLAY_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), GDK_TYPE_WAYLAND_DISPLAY, GdkWaylandDisplayClass))
 
 struct _GdkWaylandDisplay
 {
   GdkDisplay parent_instance;
   GdkScreen *screen;
+
+  /* Keyboard related information */
+  GdkKeymap *keymap;
 
   /* input GdkDevice list */
   GList *input_devices;
@@ -52,7 +70,8 @@ struct _GdkWaylandDisplay
   /* Startup notification */
   gchar *startup_notification_id;
 
-  /* Most recent serial */
+  /* Time of most recent user interaction and most recent serial */
+  gulong user_time;
   guint32 serial;
 
   /* Wayland fields below */
@@ -60,28 +79,36 @@ struct _GdkWaylandDisplay
   struct wl_registry *wl_registry;
   struct wl_compositor *compositor;
   struct wl_shm *shm;
-  struct xdg_shell *xdg_shell;
-  struct gtk_shell *gtk_shell;
+  struct wl_shell *shell;
+  struct wl_output *output;
   struct wl_input_device *input_device;
   struct wl_data_device_manager *data_device_manager;
-  struct wl_subcompositor *subcompositor;
 
   struct wl_cursor_theme *cursor_theme;
-  GHashTable *cursor_cache;
 
   GSource *event_source;
 
-  int compositor_version;
-
   struct xkb_context *xkb_context;
 
-  GdkWaylandSelection *selection;
+#ifdef GDK_WAYLAND_USE_EGL
+  EGLDisplay egl_display;
+  EGLContext egl_context;
+  cairo_device_t *cairo_device;
+#endif
+
+#ifdef GDK_WAYLAND_USE_EGL
+  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC image_target_texture_2d;
+  PFNEGLCREATEIMAGEKHRPROC create_image;
+  PFNEGLDESTROYIMAGEKHRPROC destroy_image;
+#endif
 };
 
 struct _GdkWaylandDisplayClass
 {
   GdkDisplayClass parent_class;
 };
+
+GType      _gdk_wayland_display_get_type            (void);
 
 G_END_DECLS
 

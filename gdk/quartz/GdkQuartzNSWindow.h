@@ -37,15 +37,11 @@
 -(BOOL)isInMove;
 -(void)beginManualMove;
 -(BOOL)trackManualMove;
--(BOOL)isInManualResizeOrMove;
+-(BOOL)isInManualResize;
 -(void)beginManualResize;
 -(BOOL)trackManualResize;
 -(void)showAndMakeKey:(BOOL)makeKey;
 -(void)hide;
-
-#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
--(void)setStyleMask:(NSUInteger)styleMask;
-#endif
 
 @end
 

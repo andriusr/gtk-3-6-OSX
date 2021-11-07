@@ -371,8 +371,6 @@ void
 _gdk_input_wintab_init_check (GdkDeviceManager *_device_manager)
 {
   GdkDeviceManagerWin32 *device_manager = (GdkDeviceManagerWin32 *)_device_manager;
-  GdkDisplay *display = gdk_device_manager_get_display (_device_manager);
-  GdkWindow *root = gdk_screen_get_root_window (gdk_display_get_default_screen (display));
   static gboolean wintab_initialized = FALSE;
   GdkDeviceWintab *device;
   GdkWindowAttr wa;
@@ -461,7 +459,7 @@ _gdk_input_wintab_init_check (GdkDeviceManager *_device_manager)
   wa.x = -100;
   wa.y = -100;
   wa.window_type = GDK_WINDOW_TOPLEVEL;
-  if ((wintab_window = gdk_window_new (root, &wa, GDK_WA_X | GDK_WA_Y)) == NULL)
+  if ((wintab_window = gdk_window_new (NULL, &wa, GDK_WA_X|GDK_WA_Y)) == NULL)
     {
       g_warning ("gdk_input_wintab_init: gdk_window_new failed");
       return;
@@ -884,6 +882,7 @@ _gdk_input_other_event (GdkEvent  *event,
                         GdkWindow *window)
 {
   GdkDeviceManagerWin32 *device_manager;
+  GdkDisplay *display;
   GdkDeviceWintab *source_device = NULL;
   GdkDeviceGrabInfo *last_grab;
   GdkEventMask masktest;
@@ -907,11 +906,13 @@ _gdk_input_other_event (GdkEvent  *event,
     }
 
   device_manager = GDK_DEVICE_MANAGER_WIN32 (gdk_display_get_device_manager (_gdk_display));
-  window = gdk_device_get_window_at_position (device_manager->core_pointer, &x, &y);
+
+  window = gdk_window_at_pointer (&x, &y);
   if (window == NULL)
     window = _gdk_root;
 
   g_object_ref (window);
+  display = gdk_window_get_display (window);
 
   GDK_NOTE (EVENTS_OR_INPUT,
 	    g_print ("_gdk_input_other_event: window=%p %+d%+d\n",

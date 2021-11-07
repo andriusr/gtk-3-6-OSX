@@ -1,5 +1,5 @@
 /*** BEGIN file-header ***/
-#include "config.h"
+#define GDK_ENABLE_BROKEN
 #include "gdk.h"
 
 /*** END file-header ***/

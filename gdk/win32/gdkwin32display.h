@@ -22,12 +22,12 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/. 
  */
 
-#ifndef __GDK_WIN32_DISPLAY_H__
-#define __GDK_WIN32_DISPLAY_H__
-
 #if !defined (__GDKWIN32_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkwin32.h> can be included directly."
 #endif
+
+#ifndef __GDK_WIN32_DISPLAY_H__
+#define __GDK_WIN32_DISPLAY_H__
 
 #include <gdk/gdk.h>
 
@@ -47,7 +47,6 @@ typedef struct _GdkWin32DisplayClass GdkWin32DisplayClass;
 #define GDK_IS_WIN32_DISPLAY_CLASS(klass)   (G_TYPE_CHECK_CLASS_TYPE ((klass), GDK_TYPE_WIN32_DISPLAY))
 #define GDK_WIN32_DISPLAY_GET_CLASS(obj)    (G_TYPE_INSTANCE_GET_CLASS ((obj), GDK_TYPE_WIN32_DISPLAY, GdkWin32DisplayClass))
 
-GDK_AVAILABLE_IN_ALL
 GType      gdk_win32_display_get_type            (void);
 
 G_END_DECLS

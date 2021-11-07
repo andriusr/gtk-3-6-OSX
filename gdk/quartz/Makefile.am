@@ -9,7 +9,6 @@ AM_CPPFLAGS = 				\
 	-I$(top_srcdir)			\
 	-I$(top_srcdir)/gdk		\
 	-I$(top_builddir)/gdk		\
-	$(GDK_HIDDEN_VISIBILITY_CFLAGS) \
 	$(GTK_DEBUG_FLAGS) 		\
 	$(GDK_DEP_CFLAGS)		\
 	"-xobjective-c"

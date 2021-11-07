@@ -21,8 +21,6 @@
  * files for a list of changes.  These files are distributed with
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/.
  */
-#include "config.h"
-
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +35,8 @@
 #include "gdkkeysyms.h"
 #include "gdkkeysprivate.h"
 #include "gdkwin32keys.h"
+
+#include "config.h"
 
 struct _GdkWin32KeymapClass
 {
@@ -65,8 +65,6 @@ static GdkKeymap *default_keymap = NULL;
 
 static guint *keysym_tab = NULL;
 
-#define KEY_STATE_SIZE 256
-
 #ifdef G_ENABLE_DEBUG
 static void
 print_keysym_tab (void)
@@ -76,7 +74,7 @@ print_keysym_tab (void)
   g_print ("keymap:%s%s\n",
 	   _gdk_keyboard_has_altgr ? " (uses AltGr)" : "",
 	   (gdk_shift_modifiers & GDK_LOCK_MASK) ? " (has ShiftLock)" : "");
-  for (vk = 0; vk < KEY_STATE_SIZE; vk++)
+  for (vk = 0; vk < 256; vk++)
     {
       gint state;
       
@@ -148,8 +146,6 @@ handle_special (guint  vk,
       *ksymp = GDK_KEY_Select; break;
     case VK_PRINT:
       *ksymp = GDK_KEY_Print; break;
-    case VK_SNAPSHOT:
-      *ksymp = GDK_KEY_Print; break;
     case VK_EXECUTE:
       *ksymp = GDK_KEY_Execute; break;
     case VK_INSERT:
@@ -164,8 +160,6 @@ handle_special (guint  vk,
       *ksymp = GDK_KEY_Meta_R; break;
     case VK_APPS:
       *ksymp = GDK_KEY_Menu; break;
-    case VK_DECIMAL:
-      *ksymp = GDK_KEY_KP_Decimal; break;
     case VK_MULTIPLY:
       *ksymp = GDK_KEY_KP_Multiply; break;
     case VK_ADD:
@@ -283,12 +277,12 @@ set_shift_vks (guchar *key_state,
 }
 
 static void
-reset_after_dead (guchar key_state[KEY_STATE_SIZE])
+reset_after_dead (guchar key_state[256])
 {
-  guchar temp_key_state[KEY_STATE_SIZE];
+  guchar temp_key_state[256];
   wchar_t wcs[2];
 
-  memmove (temp_key_state, key_state, KEY_STATE_SIZE);
+  memmove (temp_key_state, key_state, sizeof (key_state));
 
   temp_key_state[VK_SHIFT] =
     temp_key_state[VK_CONTROL] =
@@ -352,7 +346,7 @@ static void
 update_keymap (void)
 {
   static guint current_serial = 0;
-  guchar key_state[KEY_STATE_SIZE];
+  guchar key_state[256];
   guint scancode;
   guint vk;
   gboolean capslock_tested = FALSE;
@@ -363,14 +357,14 @@ update_keymap (void)
   current_serial = _gdk_keymap_serial;
 
   if (keysym_tab == NULL)
-    keysym_tab = g_new (guint, 4*KEY_STATE_SIZE);
+    keysym_tab = g_new (guint, 4*256);
 
   memset (key_state, 0, sizeof (key_state));
 
   _gdk_keyboard_has_altgr = FALSE;
   gdk_shift_modifiers = GDK_SHIFT_MASK;
 
-  for (vk = 0; vk < KEY_STATE_SIZE; vk++)
+  for (vk = 0; vk < 256; vk++)
     {
       if ((scancode = MapVirtualKey (vk, 0)) == 0 &&
 	  vk != VK_DIVIDE)
@@ -587,7 +581,7 @@ gdk_win32_keymap_get_entries_for_keyval (GdkKeymap     *keymap,
       
       update_keymap ();
 
-      for (vk = 0; vk < KEY_STATE_SIZE; vk++)
+      for (vk = 0; vk < 256; vk++)
 	{
 	  gint i;
 
@@ -655,7 +649,7 @@ gdk_win32_keymap_get_entries_for_keycode (GdkKeymap     *keymap,
   g_return_val_if_fail (n_entries != NULL, FALSE);
 
   if (hardware_keycode <= 0 ||
-      hardware_keycode >= KEY_STATE_SIZE)
+      hardware_keycode >= 256)
     {
       if (keys)
         *keys = NULL;
@@ -751,7 +745,7 @@ gdk_win32_keymap_lookup_key (GdkKeymap          *keymap,
 
   update_keymap ();
   
-  if (key->keycode >= KEY_STATE_SIZE ||
+  if (key->keycode >= 256 ||
       key->group < 0 || key->group >= 2 ||
       key->level < 0 || key->level >= 2)
     return 0;
@@ -800,7 +794,7 @@ gdk_win32_keymap_translate_keyboard_state (GdkKeymap       *keymap,
   if (keymap != NULL && keymap != gdk_keymap_get_default ())
     return FALSE;
 
-  if (hardware_keycode >= KEY_STATE_SIZE)
+  if (hardware_keycode >= 256)
     return FALSE;
 
   if (group < 0 || group >= 2)

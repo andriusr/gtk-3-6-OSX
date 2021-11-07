@@ -4,14 +4,13 @@ include $(top_srcdir)/Makefile.decl
 libgdkincludedir = $(includedir)/gtk-3.0/gdk
 libgdkx11includedir = $(includedir)/gtk-3.0/gdk/x11
 
-AM_CPPFLAGS = 				\
-	-DG_LOG_DOMAIN=\"Gdk\"		\
-	-DGDK_COMPILATION		\
-	-I$(top_srcdir)			\
-	-I$(top_srcdir)/gdk		\
-	-I$(top_builddir)/gdk		\
-	$(GDK_HIDDEN_VISIBILITY_CFLAGS) \
-	$(GTK_DEBUG_FLAGS) 		\
+AM_CPPFLAGS = 			\
+	-DG_LOG_DOMAIN=\"Gdk\"	\
+	-DGDK_COMPILATION	\
+	-I$(top_srcdir)		\
+	-I$(top_srcdir)/gdk	\
+	-I$(top_builddir)/gdk	\
+	$(GTK_DEBUG_FLAGS) 	\
 	$(GDK_DEP_CFLAGS)
 
 LDADDS = $(GDK_DEP_LIBS)
@@ -54,7 +53,9 @@ libgdk_x11_la_SOURCES = 	\
 	gdkx.h			\
 	gdkprivate-x11.h	\
 	xsettings-client.h	\
-	xsettings-client.c
+	xsettings-client.c	\
+	xsettings-common.h	\
+	xsettings-common.c
 
 libgdkinclude_HEADERS = 	\
 	gdkx.h
@@ -78,6 +79,11 @@ libgdkx11include_HEADERS = 	\
 	gdkx11utils.h		\
 	gdkx11visual.h		\
 	gdkx11window.h
+
+noinst_PROGRAMS = checksettings
+checksettings_LDADD = libgdk-x11.la $(GLIB_LIBS)
+
+TESTS = checksettings
 
 # We need to include all these C files here since the conditionals
 # don't seem to be correctly expanded for the dist files.

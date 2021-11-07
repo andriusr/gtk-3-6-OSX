@@ -17,23 +17,19 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __GDK_QUARTZ_UTILS_H__
-#define __GDK_QUARTZ_UTILS_H__
-
 #if !defined (__GDKQUARTZ_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkquartz.h> can be included directly."
 #endif
+
+#ifndef __GDK_QUARTZ_UTILS_H__
+#define __GDK_QUARTZ_UTILS_H__
 
 #include <gdk/gdk.h>
 
 G_BEGIN_DECLS
 
-GDK_AVAILABLE_IN_ALL
 NSImage  *gdk_quartz_pixbuf_to_ns_image_libgtk_only             (GdkPixbuf      *pixbuf);
-GDK_AVAILABLE_IN_ALL
 NSEvent  *gdk_quartz_event_get_nsevent                          (GdkEvent       *event);
-GDK_AVAILABLE_IN_3_12
-gunichar  gdk_quartz_get_key_equivalent                         (guint           key);
 
 G_END_DECLS
 

@@ -22,12 +22,12 @@
  * GTK+ at ftp://ftp.gtk.org/pub/gtk/. 
  */
 
-#ifndef __GDK_BROADWAY_CURSOR_H__
-#define __GDK_BROADWAY_CURSOR_H__
-
 #if !defined (__GDKBROADWAY_H_INSIDE__) && !defined (GDK_COMPILATION)
 #error "Only <gdk/gdkbroadway.h> can be included directly."
 #endif
+
+#ifndef __GDK_BROADWAY_CURSOR_H__
+#define __GDK_BROADWAY_CURSOR_H__
 
 #include <gdk/gdk.h>
 
@@ -47,7 +47,6 @@ typedef GdkCursor GdkBroadwayCursor;
 #endif
 typedef struct _GdkBroadwayCursorClass GdkBroadwayCursorClass;
 
-GDK_AVAILABLE_IN_ALL
 GType    gdk_broadway_cursor_get_type          (void);
 
 G_END_DECLS

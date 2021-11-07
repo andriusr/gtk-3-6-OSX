@@ -41,7 +41,7 @@
  *
  * GTK+ provides a higher level abstraction based on top of these functions,
  * and so they are not normally needed in GTK+ applications.
- * See the [Drag and Drop][gtk3-Drag-and-Drop] section of
+ * See the <link linkend="gtk-Drag-and-Drop">Drag and Drop</link> section of
  * the GTK+ documentation for more information.
  */
 
@@ -51,7 +51,7 @@
  *
  * Retrieves the list of targets of the context.
  *
- * Returns: (transfer none) (element-type GdkAtom): a #GList of targets
+ * Return value: (transfer none) (element-type GdkAtom): a #GList of targets
  *
  * Since: 2.22
  **/
@@ -68,9 +68,9 @@ gdk_drag_context_list_targets (GdkDragContext *context)
  * @context: a #GdkDragContext
  *
  * Determines the bitmask of actions proposed by the source if
- * gdk_drag_context_get_suggested_action() returns %GDK_ACTION_ASK.
+ * gdk_drag_context_get_suggested_action() returns GDK_ACTION_ASK.
  *
- * Returns: the #GdkDragAction flags
+ * Return value: the #GdkDragAction flags
  *
  * Since: 2.22
  **/
@@ -88,7 +88,7 @@ gdk_drag_context_get_actions (GdkDragContext *context)
  *
  * Determines the suggested drag action of the context.
  *
- * Returns: a #GdkDragAction value
+ * Return value: a #GdkDragAction value
  *
  * Since: 2.22
  **/
@@ -106,7 +106,7 @@ gdk_drag_context_get_suggested_action (GdkDragContext *context)
  *
  * Determines the action chosen by the drag destination.
  *
- * Returns: a #GdkDragAction value
+ * Return value: a #GdkDragAction value
  *
  * Since: 2.22
  **/
@@ -124,7 +124,7 @@ gdk_drag_context_get_selected_action (GdkDragContext *context)
  *
  * Returns the #GdkWindow where the DND operation started.
  *
- * Returns: (transfer none): a #GdkWindow
+ * Return value: (transfer none): a #GdkWindow
  *
  * Since: 2.22
  **/
@@ -142,7 +142,7 @@ gdk_drag_context_get_source_window (GdkDragContext *context)
  *
  * Returns the destination windw for the DND operation.
  *
- * Returns: (transfer none): a #GdkWindow
+ * Return value: (transfer none): a #GdkWindow
  *
  * Since: 3.0
  **/
@@ -315,8 +315,6 @@ gdk_drag_status (GdkDragContext *context,
  * set of actions changes.
  *
  * This function is called by the drag source.
- *
- * Returns:
  */
 gboolean
 gdk_drag_motion (GdkDragContext *context,
@@ -400,7 +398,7 @@ gdk_drop_reply (GdkDragContext *context,
 
 /**
  * gdk_drop_finish:
- * @context: a #GdkDragContext
+ * @context: a #GtkDragContext
  * @success: %TRUE if the data was successfully received
  * @time_: the timestamp for this operation
  *
@@ -427,7 +425,7 @@ gdk_drop_finish (GdkDragContext *context,
  * handling a %GDK_DROP_FINISHED event, its return value is
  * meaningless at other times.
  *
- * Returns: %TRUE if the drop was successful.
+ * Return value: %TRUE if the drop was successful.
  *
  * Since: 2.6
  **/
@@ -445,12 +443,13 @@ gdk_drag_drop_succeeded (GdkDragContext *context)
  *
  * Returns the selection atom for the current source window.
  *
- * Returns: (transfer none): the selection atom, or %GDK_NONE
+ * Return value: (transfer none): the selection atom, or %GDK_NONE
  */
 GdkAtom
 gdk_drag_get_selection (GdkDragContext *context)
 {
   g_return_val_if_fail (GDK_IS_DRAG_CONTEXT (context), GDK_NONE);
+  g_return_val_if_fail (context->source_window != NULL, GDK_NONE);
 
   return GDK_DRAG_CONTEXT_GET_CLASS (context)->get_selection (context);
 }

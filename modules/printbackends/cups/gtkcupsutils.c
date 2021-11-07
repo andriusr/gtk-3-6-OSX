@@ -87,20 +87,6 @@ static GtkCupsRequestStateFunc get_states[] = {
 #define ippSetState(ipp_request, ipp_state) ipp_request->state = ipp_state
 #define ippGetString(attr, index, foo) attr->values[index].string.text
 #define ippGetCount(attr) attr->num_values
-
-int
-ippSetVersion (ipp_t *ipp,
-               int    major,
-               int    minor)
-{
-  if (!ipp || major < 0 || minor < 0)
-    return 0;
-
-  ipp->request.any.version[0] = major;
-  ipp->request.any.version[1] = minor;
-
-  return 1;
-}
 #endif
 
 static void
@@ -670,13 +656,6 @@ gtk_cups_request_encode_option (GtkCupsRequest *request,
     }
 }
 				
-void
-gtk_cups_request_set_ipp_version (GtkCupsRequest     *request,
-				  gint                major,
-				  gint                minor)
-{
-  ippSetVersion (request->ipp_request, major, minor);
-}
 
 static void
 _connect (GtkCupsRequest *request)
@@ -1130,14 +1109,13 @@ _post_check (GtkCupsRequest *request)
         }
 
       request->poll_state = GTK_CUPS_HTTP_IDLE;
+       
+      httpFlush (request->http); 
+      
       request->last_status = HTTP_CONTINUE;
-
-      httpFlush (request->http);
-      if (request->own_http)
-        httpClose (request->http);
+      httpClose (request->http);
       request->http = NULL;
-
-      return;
+      return;  
     }
   else
     {
@@ -1399,14 +1377,12 @@ _get_check (GtkCupsRequest *request)
         }
 
       request->poll_state = GTK_CUPS_HTTP_IDLE;
-      request->last_status = HTTP_CONTINUE;
-
       httpFlush (request->http);
-      if (request->own_http)
-        httpClose (request->http);
+      httpClose (request->http);
+      request->last_status = HTTP_CONTINUE;
       request->http = NULL;
-
       return;
+
     }
   else
     {
@@ -1522,18 +1498,14 @@ gtk_cups_result_get_error_string (GtkCupsResult *result)
  * a socket for communication with a CUPS server 'server'.
  */
 GtkCupsConnectionTest *
-gtk_cups_connection_test_new (const char *server,
-                              const int   port)
+gtk_cups_connection_test_new (const char *server)
 {
   GtkCupsConnectionTest *result = NULL;
   gchar                 *port_str = NULL;
 
   result = g_new (GtkCupsConnectionTest, 1);
 
-  if (port >= 0)
-    port_str = g_strdup_printf ("%d", port);
-  else
-    port_str = g_strdup_printf ("%d", ippPort ());
+  port_str = g_strdup_printf ("%d", ippPort ());
 
   if (server != NULL)
     result->addrlist = httpAddrGetList (server, AF_UNSPEC, port_str);

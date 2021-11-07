@@ -1,5 +1,9 @@
 include $(top_srcdir)/Makefile.decl
 
+if PLATFORM_WIN32
+no_undefined = -no-undefined
+endif
+
 AM_CPPFLAGS = \
 	-I$(top_srcdir) 				\
 	-I$(top_srcdir)/gtk				\
@@ -25,14 +29,12 @@ backend_LTLIBRARIES = libprintbackend-cups.la
 libprintbackend_cups_la_SOURCES =	\
 	gtkprintbackendcups.c		\
 	gtkprintercups.c		\
-	gtkcupsutils.c			\
-	gtkcupssecretsutils.c
+	gtkcupsutils.c
 
 noinst_HEADERS =			\
 	gtkprintbackendcups.h		\
 	gtkprintercups.h		\
-	gtkcupsutils.h			\
-	gtkcupssecretsutils.h
+	gtkcupsutils.h
 
 libprintbackend_cups_la_LDFLAGS =  -avoid-version -module $(no_undefined)
 libprintbackend_cups_la_LIBADD = $(LDADDS) $(CUPS_LIBS)

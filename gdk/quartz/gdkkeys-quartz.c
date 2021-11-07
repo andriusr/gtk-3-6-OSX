@@ -759,15 +759,226 @@ gdk_quartz_keymap_get_modifier_mask (GdkKeymap         *keymap,
     }
 }
 
+/* Process standard globally defined shortcuts that are not returned to the system */
+typedef struct {
+	TISInputSourceRef source;
+	int keyboardLayoutPriority;
+	int inputModePriority;
+} TkeyboardSourceData;
+
+static int gdk_keys_get_layout_priority(TISInputSourceRef inputSource, GList *localesList)
+{
+	GList *tmplist;
+	int count = 0;
+	const char *langString;
+	CFArrayRef langArray = NULL;
+	CFStringRef sourceLocName = NULL;
+	if (localesList) {
+		langArray = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceLanguages);
+		langString = CFStringGetCStringPtr(CFArrayGetValueAtIndex(langArray, 0), kCFStringEncodingMacRoman);
+		tmplist = g_list_first(localesList);
+		while(tmplist){
+			if(g_strcmp0(langString, (char *)tmplist->data) == 0) {
+				return count;
+			}
+		tmplist = g_list_next(tmplist);
+		count++;	
+		}
+	}
+	/* Assign priority according alphabet */
+	sourceLocName = TISGetInputSourceProperty(inputSource, kTISPropertyLocalizedName);
+	gchar *localeFirstLetter =NULL;
+	localeFirstLetter = g_strndup((const char *)CFStringGetCStringPtr((CFStringRef)sourceLocName, kCFStringEncodingMacRoman), 1);
+	/*Assume first letter is ASCII and Capital */
+	if (localeFirstLetter) {
+		int retval = 165 +localeFirstLetter[0];
+		g_free(localeFirstLetter);
+		return retval;
+	}	else {
+		return 255;
+	}
+}
+
+static int sortInputMenuDropdown(gpointer item1, gpointer item2)
+{
+	TkeyboardSourceData *el1 = item1;
+	TkeyboardSourceData *el2 = item2;
+	if (el1->keyboardLayoutPriority > el2->keyboardLayoutPriority)
+		return 1;
+	else if (el1->keyboardLayoutPriority == el2->keyboardLayoutPriority) {
+		if (el1->inputModePriority >= el2->inputModePriority)
+			return 1;
+	}
+	return -1;
+
+}
+
 /* What sort of key event is this? Returns one of
  * GDK_KEY_PRESS, GDK_KEY_RELEASE, GDK_NOTHING (should be ignored)
  */
 GdkEventType
 _gdk_quartz_keys_event_type (NSEvent *event)
 {
-  unsigned short keycode;
-  unsigned int flags;
+  unsigned short keycode = [event keyCode];
+  unsigned int flags = [event modifierFlags];
   int i;
+/* Process standard globally defined shortcuts that are not returned to the system */
+/* Move Focus to Next Window */
+     if ((flags & NSCommandKeyMask) && keycode == 50 && ([event type] == NSKeyDown)) {
+      	return GDK_NOTHING;
+     }
+/* Cmd+M minimise current active window */
+     if ((flags & NSCommandKeyMask) && keycode == 46 && ([event type] == NSKeyDown)) {
+      	return GDK_NOTHING;
+     }
+     /* Cmd+H hide application */
+     if ((flags & NSCommandKeyMask) && keycode == 4 && ([event type] == NSKeyDown)) {
+      	return GDK_NOTHING;
+     }
+     /* Alt+Cmd+H hide all other applications */
+     if ((flags & NSCommandKeyMask) && (flags & NSAlternateKeyMask) && keycode == 4 && ([event type] == NSKeyDown)) {
+      	return GDK_NOTHING;
+     }
+
+/* Select Next Source in Input Menu*/
+    if ((flags & NSCommandKeyMask) && (flags & NSAlternateKeyMask) &&
+      keycode == 49 && ([event type] == NSKeyDown)) {
+      	
+      	TISInputSourceRef inputSource = NULL;
+      	CFArrayRef allInputs = NULL;
+      	CFArrayRef inputModes = NULL;
+      	CFStringRef comString = CFSTR("com.apple");
+		CFStringRef sourceId = NULL;
+		CFStringRef inputModeId = NULL;
+		CFStringRef sourceType = NULL;
+		CFStringRef sourceLocName = NULL;
+		CFBooleanRef sourceSelectCapable = NULL;
+		TkeyboardSourceData *sourceData = NULL;
+		TkeyboardSourceData *inputModeData = NULL;
+		int k;
+		GList *localesList=NULL;
+		GList *dropDownList=NULL;	
+		long count = 0;
+		long inputModes_count = 0;	
+		
+/* Find locales list */
+		CFTypeRef preferences = CFPreferencesCopyAppValue (CFSTR ("AppleLanguages"), kCFPreferencesCurrentApplication);
+		if (preferences != NULL) {
+	    	long n = CFArrayGetCount (preferences);
+	   	 	for (i = 0; i < n; i++) {
+	    		CFStringRef element = CFArrayGetValueAtIndex (preferences, i);
+	    		gchar *localeString;
+	    		localeString = g_strndup((const char *)CFStringGetCStringPtr((CFStringRef)element, kCFStringEncodingMacRoman), 2);
+	    		if (localeString)
+					localesList = g_list_prepend(localesList, localeString);
+ 			}
+			localesList = g_list_reverse(localesList);
+			CFRelease(preferences);
+		}
+/*Create dropdown list using locale preferences */
+		const void *key1[] = {kTISPropertyInputSourceCategory};
+		const void *value1[] = {kTISCategoryKeyboardInputSource};
+		CFDictionaryRef filterSourceCategory = CFDictionaryCreate(NULL, key1, value1, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);		
+      	allInputs = TISCreateInputSourceList(filterSourceCategory, false);
+      	if (allInputs !=NULL)
+			count = CFArrayGetCount(allInputs);
+		CFRelease(filterSourceCategory);
+		
+		const void *key2[] = {kTISPropertyInputSourceType};
+		const void *value2[] = {kTISTypeKeyboardInputMode};
+		CFDictionaryRef filterSourceType = CFDictionaryCreate(NULL, key2, value2, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+		inputModes = TISCreateInputSourceList(filterSourceType, false);
+		if (inputModes != NULL)
+			inputModes_count = CFArrayGetCount(inputModes);
+		CFRelease(filterSourceType);
+
+		for (i = 0; i < count; i++) {
+			inputSource = (TISInputSourceRef)CFArrayGetValueAtIndex(allInputs, i);
+			sourceLocName = TISGetInputSourceProperty(inputSource, kTISPropertyLocalizedName);
+			CFRange range = CFStringFind(sourceLocName, comString, kCFCompareCaseInsensitive);
+			
+			if (range.location == kCFNotFound) {
+				sourceData = g_new0(TkeyboardSourceData, 1);
+				sourceData->source = inputSource;
+				sourceData->keyboardLayoutPriority = 255;
+				sourceData->inputModePriority = 255;
+				sourceType = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceType);
+				sourceSelectCapable = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceIsSelectCapable);
+				
+				if((CFStringCompare(sourceType, kTISTypeKeyboardLayout, 0)== 0) || 
+					(CFStringCompare(sourceType, kTISTypeKeyboardInputMethodWithoutModes, 0)== 0)) {
+					sourceData->keyboardLayoutPriority = gdk_keys_get_layout_priority(inputSource, localesList);
+					if (CFBooleanGetValue(sourceSelectCapable))
+						dropDownList = g_list_insert_sorted (dropDownList, sourceData, (GCompareFunc)sortInputMenuDropdown);
+				}
+				else if(CFStringCompare(sourceType, kTISTypeKeyboardInputMethodModeEnabled, 0)== 0) {
+					sourceData->keyboardLayoutPriority = gdk_keys_get_layout_priority(inputSource, localesList);
+					sourceId = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceID);
+					if (CFBooleanGetValue(sourceSelectCapable))
+						dropDownList = g_list_insert_sorted (dropDownList, sourceData, (GCompareFunc)sortInputMenuDropdown);
+					for (k = 0; k < inputModes_count; k++) {
+						inputSource = (TISInputSourceRef)CFArrayGetValueAtIndex(inputModes, k);
+						sourceLocName = TISGetInputSourceProperty(inputSource, kTISPropertyLocalizedName);
+						inputModeId = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceID);
+						sourceSelectCapable = TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceIsSelectCapable);
+						CFRange inputModeRange = CFStringFind(inputModeId, sourceId, kCFCompareCaseInsensitive);
+						CFRange range = CFStringFind(sourceLocName, comString, kCFCompareCaseInsensitive);
+						if (range.location == kCFNotFound &&  inputModeRange.location != kCFNotFound) {
+							inputModeData = g_new0(TkeyboardSourceData, 1);
+							inputModeData->source = inputSource;
+							inputModeData->keyboardLayoutPriority = sourceData->keyboardLayoutPriority;
+							inputModeData->inputModePriority = gdk_keys_get_layout_priority(inputSource, localesList);
+							if (CFBooleanGetValue(sourceSelectCapable))
+								dropDownList = g_list_insert_sorted (dropDownList, inputModeData, (GCompareFunc)sortInputMenuDropdown);
+						}
+					}
+				}
+			}
+		}
+/*Now select next input source based on dropdown list we created */
+		GList *tmplist;
+		TkeyboardSourceData *tmpData;
+		if (dropDownList != NULL && (g_list_length(dropDownList) > 1)) {
+			TISInputSourceRef currentSource = (TISInputSourceRef)TISCopyCurrentKeyboardInputSource();
+			tmplist = g_list_first(dropDownList);
+			while(tmplist) {
+				if (tmplist->data) {
+					tmpData = (TkeyboardSourceData *)tmplist->data;
+   	 				inputSource = (TISInputSourceRef)tmpData->source;
+   					if (CFStringCompare(TISGetInputSourceProperty(currentSource, kTISPropertyInputSourceID), TISGetInputSourceProperty(inputSource, kTISPropertyInputSourceID), 0) == 0) {
+   						if (tmplist->next !=NULL) {
+   							tmplist = g_list_next(tmplist);
+   							if (tmplist->data) {
+   								tmpData = (TkeyboardSourceData *)tmplist->data;
+								inputSource = (TISInputSourceRef)tmpData->source;
+							}
+   						} else {
+   							tmplist = g_list_first(dropDownList);
+   							if (tmplist->data) {
+   								tmpData = (TkeyboardSourceData *)tmplist->data;
+								inputSource = (TISInputSourceRef)tmpData->source;
+							}
+   						} 
+        				TISSelectInputSource(inputSource);
+        				break; 
+    				} 
+    			}
+    			tmplist = g_list_next(tmplist);
+			}
+		}
+/* Memory cleanup */
+		if (allInputs !=NULL)
+			CFRelease(allInputs);
+		if (inputModes != NULL)
+			CFRelease(inputModes);
+		if (dropDownList != NULL)
+			g_list_free_full(dropDownList, (GDestroyNotify)g_free);
+		if(localesList != NULL)
+			g_list_free_full(localesList, (GDestroyNotify)g_free);
+		
+      return GDK_KEY_PRESS;
+   }
+/* End of processing */
   
   switch ([event type])
     {
@@ -783,9 +994,6 @@ _gdk_quartz_keys_event_type (NSEvent *event)
   
   /* For flags-changed events, we have to find the special key that caused the
    * event, and see if it's in the modifier mask. */
-  keycode = [event keyCode];
-  flags = [event modifierFlags];
-  
   for (i = 0; i < G_N_ELEMENTS (modifier_keys); i++)
     {
       if (modifier_keys[i].keycode == keycode)

@@ -51,9 +51,7 @@ struct _GdkBroadwayCursorClass
 
 G_DEFINE_TYPE (GdkBroadwayCursor, gdk_broadway_cursor, GDK_TYPE_CURSOR)
 
-static cairo_surface_t * gdk_broadway_cursor_get_surface (GdkCursor *cursor,
-							  gdouble   *x_hot,
-							  gdouble   *y_hot);
+static GdkPixbuf* gdk_broadway_cursor_get_image (GdkCursor *cursor);
 
 static void
 gdk_broadway_cursor_finalize (GObject *object)
@@ -69,7 +67,7 @@ gdk_broadway_cursor_class_init (GdkBroadwayCursorClass *xcursor_class)
 
   object_class->finalize = gdk_broadway_cursor_finalize;
 
-  cursor_class->get_surface = gdk_broadway_cursor_get_surface;
+  cursor_class->get_image = gdk_broadway_cursor_get_image;
 }
 
 static void
@@ -101,10 +99,8 @@ _gdk_broadway_display_get_cursor_for_type (GdkDisplay    *display,
   return GDK_CURSOR (private);
 }
 
-static cairo_surface_t *
-gdk_broadway_cursor_get_surface (GdkCursor *cursor,
-				 gdouble *x_hot,
-				 gdouble *y_hot)
+static GdkPixbuf*
+gdk_broadway_cursor_get_image (GdkCursor *cursor)
 {
   g_return_val_if_fail (cursor != NULL, NULL);
 
@@ -118,10 +114,10 @@ _gdk_broadway_cursor_update_theme (GdkCursor *cursor)
 }
 
 GdkCursor *
-_gdk_broadway_display_get_cursor_for_surface (GdkDisplay *display,
-					      cairo_surface_t *surface,
-					      gdouble     x,
-					      gdouble     y)
+_gdk_broadway_display_get_cursor_for_pixbuf (GdkDisplay *display,
+					     GdkPixbuf  *pixbuf,
+					     gint        x,
+					     gint        y)
 {
   GdkBroadwayCursor *private;
   GdkCursor *cursor;

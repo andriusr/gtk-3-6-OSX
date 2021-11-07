@@ -1,4 +1,6 @@
-include $(top_srcdir)/Makefile.decl
+if OS_WIN32
+no_undefined = -no-undefined
+endif
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) 				\

@@ -160,7 +160,7 @@ gtk_print_backend_file_get_type (void)
  * implements the #GtkPrintBackend interface with direct access to
  * the filesystem using Unix/Linux API calls
  *
- * Returns: the new #GtkPrintBackendFile object
+ * Return value: the new #GtkPrintBackendFile object
  **/
 GtkPrintBackend *
 gtk_print_backend_file_new (void)
@@ -219,7 +219,7 @@ output_file_from_settings (GtkPrintSettings *settings,
 
   if (uri == NULL)
     { 
-      const gchar *extension, *basename = NULL, *output_dir = NULL;
+      const gchar *extension, *basename, *output_dir;
       gchar *name, *locale_name, *path;
 
       if (default_format)
@@ -244,8 +244,7 @@ output_file_from_settings (GtkPrintSettings *settings,
             }
         }
 
-      if (settings)
-        basename = gtk_print_settings_get (settings, GTK_PRINT_SETTINGS_OUTPUT_BASENAME);
+      basename = gtk_print_settings_get (settings, GTK_PRINT_SETTINGS_OUTPUT_BASENAME);
       if (basename == NULL)
         basename = _("output");
 
@@ -255,9 +254,8 @@ output_file_from_settings (GtkPrintSettings *settings,
       g_free (name);
 
       if (locale_name != NULL)
-        {
-          if (settings)
-            output_dir = gtk_print_settings_get (settings, GTK_PRINT_SETTINGS_OUTPUT_DIR);
+        {      
+          output_dir = gtk_print_settings_get (settings, GTK_PRINT_SETTINGS_OUTPUT_DIR);
           if (output_dir == NULL)
             {
               const gchar *document_dir = g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS);
@@ -293,7 +291,7 @@ _cairo_write (void                *closure,
               unsigned int         length)
 {
   GIOChannel *io = (GIOChannel *)closure;
-  gsize written = 0;
+  gsize written;
   GError *error;
 
   error = NULL;
@@ -303,20 +301,14 @@ _cairo_write (void                *closure,
 
   while (length > 0) 
     {
-      GIOStatus status;
+      g_io_channel_write_chars (io, (const gchar *) data, length, &written, &error);
 
-      status = g_io_channel_write_chars (io, (const gchar *) data, length, &written, &error);
+      if (error != NULL)
+	{
+	  GTK_NOTE (PRINTING,
+                     g_print ("FILE Backend: Error writting to temp file, %s\n", error->message));
 
-      if (status == G_IO_STATUS_ERROR)
-        {
-          if (error != NULL)
-            {
-              GTK_NOTE (PRINTING,
-                        g_print ("FILE Backend: Error writting to temp file, %s\n", error->message));
-
-              g_error_free (error);
-            }
-
+          g_error_free (error);
 	  return CAIRO_STATUS_WRITE_ERROR;
 	}    
 
@@ -384,13 +376,10 @@ file_print_cb_locked (GtkPrintBackendFile *print_backend,
                       GError              *error,
                       gpointer            user_data)
 {
-  gchar *uri;
-
   _PrintStreamData *ps = (_PrintStreamData *) user_data;
-  GtkRecentManager *recent_manager;
 
   if (ps->target_io_stream != NULL)
-    (void)g_output_stream_close (G_OUTPUT_STREAM (ps->target_io_stream), NULL, NULL);
+    g_output_stream_close (G_OUTPUT_STREAM (ps->target_io_stream), NULL, NULL);
 
   if (ps->callback)
     ps->callback (ps->job, ps->user_data, error);
@@ -400,11 +389,6 @@ file_print_cb_locked (GtkPrintBackendFile *print_backend,
 
   gtk_print_job_set_status (ps->job,
 			    (error != NULL)?GTK_PRINT_STATUS_FINISHED_ABORTED:GTK_PRINT_STATUS_FINISHED);
-
-  recent_manager = gtk_recent_manager_get_default ();
-  uri = output_file_from_settings (gtk_print_job_get_settings (ps->job), NULL);
-  gtk_recent_manager_add_item (recent_manager, uri);
-  g_free (uri);
 
   if (ps->job)
     g_object_unref (ps->job);

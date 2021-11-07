@@ -1360,10 +1360,10 @@ gdk_event_translate (GdkEvent *event,
       return FALSE;
     }
 
-  /* Also when in a manual resize or move , we ignore events so that
-   * these are pushed to GdkQuartzNSWindow's sendEvent handler.
+  /* Also when in a manual resize, we ignore events so that these are
+   * pushed to GdkQuartzNSWindow's sendEvent handler.
    */
-  if ([(GdkQuartzNSWindow *)nswindow isInManualResizeOrMove])
+  if ([(GdkQuartzNSWindow *)nswindow isInManualResize])
     return FALSE;
 
   /* Find the right GDK window to send the event to, taking grabs and
@@ -1460,9 +1460,9 @@ gdk_event_translate (GdkEvent *event,
 
             fill_scroll_event (window, event, nsevent, x, y, x_root, y_root,
                                -dx, -dy, direction);
-
-            /* Fall through for scroll buttons emulation */
-	  }
+	  } 
+	  else 
+	  {
 #endif
         dx = [nsevent deltaX];
         dy = [nsevent deltaY];
@@ -1490,25 +1490,13 @@ gdk_event_translate (GdkEvent *event,
 
         if (dx != 0.0 || dy != 0.0)
           {
-#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
-	    if (gdk_quartz_osx_version() >= GDK_OSX_LION &&
-		[nsevent hasPreciseScrollingDeltas])
-              {
-                GdkEvent *emulated_event;
-
-                emulated_event = gdk_event_new (GDK_SCROLL);
-                _gdk_event_set_pointer_emulated (emulated_event, TRUE);
-                fill_scroll_event (window, emulated_event, nsevent,
-                                   x, y, x_root, y_root,
-                                   dx, dy, direction);
-                append_event (emulated_event, TRUE);
-              }
-            else
-#endif
               fill_scroll_event (window, event, nsevent,
                                  x, y, x_root, y_root,
                                  dx, dy, direction);
           }
+#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
+       }
+#endif
       }
       break;
 
@@ -1638,12 +1626,10 @@ _gdk_quartz_screen_get_setting (GdkScreen   *screen,
     {
       NSString *name;
       char *str;
-      gint size;
 
       GDK_QUARTZ_ALLOC_POOL;
 
       name = [[NSFont systemFontOfSize:0] familyName];
-      size = (gint)[[NSFont userFontOfSize:0] pointSize];
 
       /* Let's try to use the "views" font size (12pt) by default. This is
        * used for lists/text/other "content" which is the largest parts of
@@ -1654,7 +1640,7 @@ _gdk_quartz_screen_get_setting (GdkScreen   *screen,
       /* The size has to be hardcoded as there doesn't seem to be a way to
        * get the views font size programmatically.
        */
-      str = g_strdup_printf ("%s %d", [name UTF8String], size);
+      str = g_strdup_printf ("%s 12", [name UTF8String]);
       g_value_set_string (value, str);
       g_free (str);
 
@@ -1670,16 +1656,6 @@ _gdk_quartz_screen_get_setting (GdkScreen   *screen,
 
       /* If the Apple property is YES, it means "warp" */
       g_value_set_boolean (value, setting == YES);
-
-      GDK_QUARTZ_RELEASE_POOL;
-
-      return TRUE;
-    }
-  else if (strcmp (name, "gtk-shell-shows-desktop") == 0)
-    {
-      GDK_QUARTZ_ALLOC_POOL;
-
-      g_value_set_boolean (value, TRUE);
 
       GDK_QUARTZ_RELEASE_POOL;
 

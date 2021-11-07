@@ -114,19 +114,6 @@ gtk_printer_cups_init (GtkPrinterCups *printer)
   printer->remote_cups_connection_test = NULL;
   printer->auth_info_required = NULL;
   printer->default_number_up = 1;
-#ifdef HAVE_CUPS_API_1_6
-  printer->avahi_browsed = FALSE;
-  printer->avahi_name = NULL;
-  printer->avahi_type = NULL;
-  printer->avahi_domain = NULL;
-#endif
-  printer->ipp_version_major = 1;
-  printer->ipp_version_minor = 1;
-  printer->supports_copies = FALSE;
-  printer->supports_collate = FALSE;
-  printer->supports_number_up = FALSE;
-  printer->number_of_covers = 0;
-  printer->covers = NULL;
 }
 
 static void
@@ -147,11 +134,8 @@ gtk_printer_cups_finalize (GObject *object)
   g_strfreev (printer->auth_info_required);
 
 #ifdef HAVE_COLORD
-  if (printer->colord_cancellable)
-    {
-      g_cancellable_cancel (printer->colord_cancellable);
-      g_object_unref (printer->colord_cancellable);
-    }
+  g_cancellable_cancel (printer->colord_cancellable);
+  g_object_unref (printer->colord_cancellable);
   g_free (printer->colord_title);
   g_free (printer->colord_qualifier);
   if (printer->colord_client)
@@ -161,14 +145,6 @@ gtk_printer_cups_finalize (GObject *object)
   if (printer->colord_profile)
     g_object_unref (printer->colord_profile);
 #endif
-
-#ifdef HAVE_CUPS_API_1_6
-  g_free (printer->avahi_name);
-  g_free (printer->avahi_type);
-  g_free (printer->avahi_domain);
-#endif
-
-  g_strfreev (printer->covers);
 
   if (printer->ppd_file)
     ppdClose (printer->ppd_file);
@@ -536,8 +512,7 @@ colord_printer_details_aquired_cb (GtkPrinterCups *printer,
                                    gpointer user_data)
 {
   /* refresh the device */
-  if (printer->colord_client)
-    colord_update_device (printer);
+  colord_update_device (printer);
 }
 #endif
 
@@ -546,7 +521,7 @@ colord_printer_details_aquired_cb (GtkPrinterCups *printer,
  *
  * Creates a new #GtkPrinterCups.
  *
- * Returns: a new #GtkPrinterCups
+ * Return value: a new #GtkPrinterCups
  *
  * Since: 2.10
  **/
@@ -590,14 +565,6 @@ gtk_printer_cups_new (const char      *name,
                       G_CALLBACK (colord_printer_details_aquired_cb),
                       printer);
 #endif
-
-  /*
-   * IPP version 1.1 has to be supported
-   * by all implementations according to rfc 2911
-   */
-  printer->ipp_version_major = 1;
-  printer->ipp_version_minor = 1;
-
   return printer;
 }
 
