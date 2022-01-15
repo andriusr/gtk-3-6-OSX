@@ -361,9 +361,6 @@ get_event_mask_from_ns_event (NSEvent *nsevent)
 
 	return mask;
       }
-    case NSEventTypeMagnify:
-    case NSEventTypeRotate:
-      return GDK_TOUCHPAD_GESTURE_MASK;
     case GDK_QUARTZ_KEY_DOWN:
     case GDK_QUARTZ_KEY_UP:
     case GDK_QUARTZ_FLAGS_CHANGED:
@@ -950,20 +947,6 @@ fill_button_event (GdkWindow *window,
       g_assert_not_reached ();
     }
 
-  event_device = _gdk_quartz_device_manager_core_device_for_ns_event (gdk_display_get_device_manager (_gdk_display),
-                                                                      nsevent);
-
-  if ([nsevent subtype] == GDK_QUARTZ_EVENT_SUBTYPE_TABLET_POINT)
-    {
-      axes = g_new (gdouble, TABLET_AXES);
-
-      axes[0] = x;
-      axes[1] = y;
-      axes[2] = [nsevent pressure];
-      axes[3] = [nsevent tilt].x;
-      axes[4] = [nsevent tilt].y;
-    }
-
   event->any.type = type;
   event->button.window = window;
   event->button.time = get_time_from_ns_event (nsevent);
@@ -971,7 +954,7 @@ fill_button_event (GdkWindow *window,
   event->button.y = y;
   event->button.x_root = x_root;
   event->button.y_root = y_root;
-  event->button.axes = axes;
+//  event->button.axes = axes;
   event->button.state = state;
   event->button.button = get_mouse_button_from_ns_event (nsevent);
   event->button.device = _gdk_display->core_pointer;
@@ -1420,7 +1403,7 @@ gdk_event_translate (GdkEvent *event,
   /* Also when in a manual resize or move , we ignore events so that
    * these are pushed to GdkQuartzNSWindow's sendEvent handler.
    */
-  if ([(GdkQuartzNSWindow *)nswindow isInManualResize])
+  if ([(GdkQuartzNSWindow *)nswindow isInManualResizeOrMove])
     return FALSE;
 
   /* Find the right GDK window to send the event to, taking grabs and
@@ -1547,21 +1530,6 @@ gdk_event_translate (GdkEvent *event,
 
         if (dx != 0.0 || dy != 0.0)
           {
-#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
-	    if (gdk_quartz_osx_version() >= GDK_OSX_LION &&
-		[nsevent hasPreciseScrollingDeltas])
-              {
-                GdkEvent *emulated_event;
-
-                emulated_event = gdk_event_new (GDK_SCROLL);
-                gdk_event_set_pointer_emulated (emulated_event, TRUE);
-                fill_scroll_event (window, emulated_event, nsevent,
-                                   x, y, x_root, y_root,
-                                   dx, dy, direction);
-                append_event (emulated_event, TRUE);
-              }
-            else
-#endif
               fill_scroll_event (window, event, nsevent,
                                  x, y, x_root, y_root,
                                  dx, dy, direction);
