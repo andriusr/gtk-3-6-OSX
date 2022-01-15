@@ -32,7 +32,7 @@
  * stages of the GLib main loop (prepare, check, dispatch), and make the
  * appropriate calls into GLib.
  *
- * Both cases share a single problem: the OS X API's don't allow us to
+ * Both cases share a single problem: the OS X API’s don’t allow us to
  * wait simultaneously for file descriptors and for events. So when we
  * need to do a blocking wait that includes file descriptor activity, we
  * push the actual work of calling select() to a helper thread (the
@@ -53,7 +53,7 @@
 static int current_loop_level = 0;
 
 /* Run loop level at which we acquired ownership of the GLib main
- * loop. See note in run_loop_entry(). -1 means that we don't have
+ * loop. See note in run_loop_entry(). -1 means that we don’t have
  * ownership
  */ 
 static int acquired_loop_level = -1;
@@ -88,7 +88,7 @@ static guint run_loop_n_pollfds;    /* Number of file descriptors in the array *
  * we need to make sure that the poll function is always called even
  * when there are no file descriptors that need to be polled. To do
  * this, we add a dummy GPollFD to our event source with a file
- * descriptor of '-1'. Then any time that GLib is polling the event
+ * descriptor of “-1”. Then any time that GLib is polling the event
  * source, it will call our poll function.
  */
 static GPollFD event_poll_fd;
@@ -96,13 +96,13 @@ static GPollFD event_poll_fd;
 /* Current NSEvents that we've gotten from Cocoa but haven't yet converted
  * to GdkEvents. We wait until our dispatch() function to do the conversion
  * since the conversion can conceivably cause signals to be emmitted
- * or other things that shouldn't happen inside a poll function.
+ * or other things that shouldn’t happen inside a poll function.
  */
 static GQueue *current_events;
 
 /* The default poll function for GLib; we replace this with our own
  * Cocoa-aware version and then call the old version to do actual
- * file descriptor polling. There's no actual need to chain to the
+ * file descriptor polling. There’s no actual need to chain to the
  * old one; we could reimplement the same functionality from scratch,
  * but since the default implementation does the right thing, why
  * bother.
@@ -150,6 +150,18 @@ static const char *const state_names[]  = {
   "POLLING_RESTART",
   "POLLING_DESCRIPTORS"
 };
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+typedef enum
+  {
+   GDK_QUARTZ_EVENT_MASK_ANY = NSAnyEventMask,
+  } GdkQuartzEventMask;
+#else
+typedef enum
+  {
+   GDK_QUARTZ_EVENT_MASK_ANY = NSEventMaskAny,
+  } GdkQuartzEventMask;
 #endif
 
 static SelectThreadState select_thread_state = BEFORE_START;
@@ -245,8 +257,7 @@ select_thread_func (void *arg)
 	   *
 	   *  => POLLING_DESCRIPTORS: select thread picks up the file descriptors to begin polling
 	   */ 
-	  if (current_pollfds)
-	    g_free (current_pollfds);
+	  g_free (current_pollfds);
 	  
 	  current_pollfds = next_pollfds;
 	  current_n_pollfds = next_n_pollfds;
@@ -293,13 +304,19 @@ select_thread_func (void *arg)
     }
 }
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+#define GDK_QUARTZ_APPLICATION_DEFINED NSApplicationDefined
+#else
+#define GDK_QUARTZ_APPLICATION_DEFINED NSEventTypeApplicationDefined
+#endif
+
 static void 
 got_fd_activity (void *info)
 {
   NSEvent *event;
 
   /* Post a message so we'll break out of the message loop */
-  event = [NSEvent otherEventWithType: NSApplicationDefined
+  event = [NSEvent otherEventWithType: GDK_QUARTZ_APPLICATION_DEFINED
 	                     location: NSZeroPoint
 	                modifierFlags: 0
 	                    timestamp: 0
@@ -386,7 +403,7 @@ pollfds_equal (GPollFD *old_pollfds,
  * timeout is used only to tell if the polling operation is blocking
  * or non-blocking.
  *
- * Return value:
+ * Returns:
  *  -1: No file descriptors ready, began asynchronous poll
  *   0: No file descriptors ready, asynchronous poll not needed
  * > 0: Number of file descriptors ready
@@ -543,7 +560,7 @@ select_thread_start_poll (GPollFD *ufds,
  *
  * The results of the poll are written into the GPollFD array passed in.
  *
- * Return Value: number of file descriptors ready
+ * Returns: number of file descriptors ready
  */
 static int
 select_thread_collect_poll (GPollFD *ufds, guint nfds)
@@ -646,9 +663,9 @@ gdk_event_prepare (GSource *source,
 
   *timeout = -1;
 
-  /*if (_gdk_display->event_pause_count > 0)
-    retval = FALSE;
-  else*/
+  if (_gdk_display->event_pause_count > 0)
+    retval = _gdk_event_queue_find_first (_gdk_display) != NULL;
+  else
     retval = (_gdk_event_queue_find_first (_gdk_display) != NULL ||
               _gdk_quartz_event_loop_check_pending ());
 
@@ -664,9 +681,9 @@ gdk_event_check (GSource *source)
 
   gdk_threads_enter ();
 
-/*  if (_gdk_display->event_pause_count > 0)
-    retval = FALSE;
-  else*/
+  if (_gdk_display->event_pause_count > 0)
+    retval = _gdk_event_queue_find_first (_gdk_display) != NULL;
+  else
     retval = (_gdk_event_queue_find_first (_gdk_display) != NULL ||
               _gdk_quartz_event_loop_check_pending ());
 
@@ -711,6 +728,12 @@ static GSourceFuncs event_funcs = {
  *********             Our Poll Function            *********
  ************************************************************/
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+#define GDK_QUARTZ_EVENT_MASK_ANY NSAnyEventMask
+#else
+#define GDK_QUARTZ_EVENT_MASK_ANY NSEventMaskAny
+#endif
+
 static gint
 poll_func (GPollFD *ufds,
 	   guint    nfds,
@@ -736,7 +759,7 @@ poll_func (GPollFD *ufds,
     limit_date = [NSDate dateWithTimeIntervalSinceNow:timeout_/1000.0];
 
   getting_events++;
-  event = [NSApp nextEventMatchingMask: NSAnyEventMask
+  event = [NSApp nextEventMatchingMask: GDK_QUARTZ_EVENT_MASK_ANY
 	                     untilDate: limit_date
 	                        inMode: NSDefaultRunLoopMode
                                dequeue: YES];
@@ -755,7 +778,7 @@ poll_func (GPollFD *ufds,
     n_ready = select_thread_collect_poll (ufds, nfds);
       
   if (event &&
-      [event type] == NSApplicationDefined &&
+      [event type] == GDK_QUARTZ_APPLICATION_DEFINED &&
       [event subtype] == GDK_QUARTZ_EVENT_SUBTYPE_EVENTLOOP)
     {
       /* Just used to wake us up; if an event and a FD arrived at the same
