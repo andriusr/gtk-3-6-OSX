@@ -24,11 +24,13 @@
 #include <gdk/gdkdisplayprivate.h>
 
 #include "gdkwindowimpl.h"
+#include "gdkwindow-quartz.h"
 #include "gdkprivate-quartz.h"
 #include "gdkquartzscreen.h"
 #include "gdkquartzcursor.h"
 
 #include <Carbon/Carbon.h>
+#include <AvailabilityMacros.h>
 
 #include <sys/time.h>
 #include <cairo-quartz.h>
@@ -43,8 +45,6 @@ static GSList *main_window_stack;
 
 void _gdk_quartz_window_flush (GdkWindowImplQuartz *window_impl);
 
-#define FULLSCREEN_DATA "fullscreen-data"
-
 typedef struct
 {
   gint            x, y;
@@ -52,6 +52,36 @@ typedef struct
   GdkWMDecoration decor;
 } FullscreenSavedGeometry;
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+typedef enum
+{
+ GDK_QUARTZ_BORDERLESS_WINDOW = NSBorderlessWindowMask,
+ GDK_QUARTZ_CLOSABLE_WINDOW = NSClosableWindowMask,
+#if MAC_OS_X_VERSION_MIN_REQUIRED > 1060
+ /* Added in 10.7. Apple's docs are wrong to say it's from earlier. */
+ GDK_QUARTZ_FULLSCREEN_WINDOW = NSFullScreenWindowMask,
+#endif
+ GDK_QUARTZ_MINIATURIZABLE_WINDOW = NSMiniaturizableWindowMask,
+ GDK_QUARTZ_RESIZABLE_WINDOW = NSResizableWindowMask,
+ GDK_QUARTZ_TITLED_WINDOW = NSTitledWindowMask,
+} GdkQuartzWindowMask;
+#else
+typedef enum
+{
+ GDK_QUARTZ_BORDERLESS_WINDOW = NSWindowStyleMaskBorderless,
+ GDK_QUARTZ_CLOSABLE_WINDOW = NSWindowStyleMaskClosable,
+ GDK_QUARTZ_FULLSCREEN_WINDOW = NSWindowStyleMaskFullScreen,
+ GDK_QUARTZ_MINIATURIZABLE_WINDOW = NSWindowStyleMaskMiniaturizable,
+ GDK_QUARTZ_RESIZABLE_WINDOW = NSWindowStyleMaskResizable,
+ GDK_QUARTZ_TITLED_WINDOW = NSWindowStyleMaskTitled,
+} GdkQuartzWindowMask;
+#endif
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1070
+static FullscreenSavedGeometry *get_fullscreen_geometry (GdkWindow *window);
+#endif
+
+#define FULLSCREEN_DATA "fullscreen-data"
 
 static void update_toplevel_order (void);
 static void clear_toplevel_order  (void);
@@ -622,7 +652,11 @@ _gdk_quartz_window_debug_highlight (GdkWindow *window, gint number)
     [debug_window[number] close];
 
   debug_window[number] = [[NSWindow alloc] initWithContentRect:rect
-                                                     styleMask:NSBorderlessWindowMask
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+                                                     styleMask:(NSUInteger)GDK_QUARTZ_BORDERLESS_WINDOW
+#else
+                                                     styleMask:(NSWindowStyleMask)GDK_QUARTZ_BORDERLESS_WINDOW
+#endif
 			                               backing:NSBackingStoreBuffered
 			                                 defer:NO];
 
@@ -885,6 +919,7 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 {
   GdkWindowImplQuartz *impl;
   GdkWindowImplQuartz *parent_impl;
+  GdkWindowTypeHint    type_hint = GDK_WINDOW_TYPE_HINT_NORMAL;
 
   GDK_QUARTZ_ALLOC_POOL;
 
@@ -916,8 +951,15 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 				  NULL));
 
   impl->view = NULL;
+  impl->toplevel = NULL;
 
-  switch (attributes->window_type)
+  if (attributes_mask & GDK_WA_TYPE_HINT)
+    {
+      type_hint = attributes->type_hint;
+      gdk_window_set_type_hint (window, type_hint);
+    }
+
+  switch (window->window_type)
     {
     case GDK_WINDOW_TOPLEVEL:
     case GDK_WINDOW_TEMP:
@@ -945,17 +987,17 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
                                    window->width,
                                    window->height);
 
-        if (attributes->window_type == GDK_WINDOW_TEMP ||
-            attributes->type_hint == GDK_WINDOW_TYPE_HINT_SPLASHSCREEN)
+        if (window->window_type == GDK_WINDOW_TEMP ||
+            type_hint == GDK_WINDOW_TYPE_HINT_SPLASHSCREEN)
           {
-            style_mask = NSBorderlessWindowMask;
+            style_mask = GDK_QUARTZ_BORDERLESS_WINDOW;
           }
         else
           {
-            style_mask = (NSTitledWindowMask |
-                          NSClosableWindowMask |
-                          NSMiniaturizableWindowMask |
-                          NSResizableWindowMask);
+            style_mask = (GDK_QUARTZ_TITLED_WINDOW |
+                          GDK_QUARTZ_CLOSABLE_WINDOW |
+                          GDK_QUARTZ_MINIATURIZABLE_WINDOW |
+                          GDK_QUARTZ_RESIZABLE_WINDOW);
           }
 
 	impl->toplevel = [[GdkQuartzNSWindow alloc] initWithContentRect:content_rect 
@@ -963,6 +1005,9 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 			                                        backing:NSBackingStoreBuffered
 			                                          defer:NO
                                                                   screen:screen];
+
+        if (type_hint != GDK_WINDOW_TYPE_HINT_NORMAL)
+          impl->toplevel.excludedFromWindowsMenu = true;
 
 	if (attributes_mask & GDK_WA_TITLE)
 	  title = attributes->title;
@@ -983,6 +1028,10 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 	impl->view = [[GdkQuartzView alloc] initWithFrame:content_rect];
 	[impl->view setGdkWindow:window];
 	[impl->toplevel setContentView:impl->view];
+        [[NSNotificationCenter defaultCenter] addObserver: impl->toplevel
+                                      selector: @selector (windowDidResize:)
+                                      name: @"NSViewFrameDidChangeNotification"
+                                      object: impl->view];
 	[impl->view release];
       }
       break;
@@ -1015,9 +1064,6 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
     }
 
   GDK_QUARTZ_RELEASE_POOL;
-
-  if (attributes_mask & GDK_WA_TYPE_HINT)
-    gdk_window_set_type_hint (window, attributes->type_hint);
 }
 
 void
@@ -1704,7 +1750,7 @@ gdk_window_quartz_get_geometry (GdkWindow *window,
        * windows with borders and the root relative coordinates
        * otherwise.
        */
-      if ([impl->toplevel styleMask] == NSBorderlessWindowMask)
+      if ([impl->toplevel styleMask] == GDK_QUARTZ_BORDERLESS_WINDOW)
         {
           _gdk_quartz_window_xy_to_gdk_xy (ns_rect.origin.x,
                                            ns_rect.origin.y + ns_rect.size.height,
@@ -2084,7 +2130,17 @@ gdk_quartz_window_set_geometry_hints (GdkWindow         *window,
   
   if (geom_mask & GDK_HINT_ASPECT)
     {
-      /* FIXME: Implement */
+      NSSize size;
+
+      if (geometry->min_aspect != geometry->max_aspect)
+        {
+          g_warning ("Only equal minimum and maximum aspect ratios are supported on Mac OS. Using minimum aspect ratio...");
+        }
+
+      size.width = geometry->min_aspect;
+      size.height = 1.0;
+
+      [impl->toplevel setContentAspectRatio:size];
     }
 
   if (geom_mask & GDK_HINT_WIN_GRAVITY)
@@ -2338,14 +2394,16 @@ window_type_hint_to_level (GdkWindowTypeHint hint)
       return NSTornOffMenuWindowLevel;
 
     case GDK_WINDOW_TYPE_HINT_DOCK:
-    case GDK_WINDOW_TYPE_HINT_UTILITY:
-      return NSFloatingWindowLevel;
+      return NSFloatingWindowLevel; /* NSDockWindowLevel is deprecated, and not replaced */
 
-    case GDK_WINDOW_TYPE_HINT_NORMAL:  /* Normal toplevel window */
+    case GDK_WINDOW_TYPE_HINT_UTILITY:
     case GDK_WINDOW_TYPE_HINT_DIALOG:  /* Dialog window */
+    case GDK_WINDOW_TYPE_HINT_NORMAL:  /* Normal toplevel window */
     case GDK_WINDOW_TYPE_HINT_TOOLBAR: /* Window used to implement toolbars */
-    case GDK_WINDOW_TYPE_HINT_DESKTOP: /* N/A */
-      break;
+      return NSNormalWindowLevel;
+
+    case GDK_WINDOW_TYPE_HINT_DESKTOP:
+      return kCGDesktopWindowLevelKey; /* doesn't map to any real Cocoa model */
 
     default:
       break;
@@ -2482,12 +2540,6 @@ gdk_quartz_window_begin_resize_drag (GdkWindow     *window,
 
   g_return_if_fail (GDK_IS_WINDOW (window));
 
-  if (edge != GDK_WINDOW_EDGE_SOUTH_EAST)
-    {
-      g_warning ("Resizing is only implemented for GDK_WINDOW_EDGE_SOUTH_EAST on Mac OS");
-      return;
-    }
-
   if (GDK_WINDOW_DESTROYED (window))
     return;
 
@@ -2499,7 +2551,7 @@ gdk_quartz_window_begin_resize_drag (GdkWindow     *window,
       return;
     }
 
-  [(GdkQuartzNSWindow *)impl->toplevel beginManualResize];
+  [(GdkQuartzNSWindow *)impl->toplevel beginManualResize:edge];
 }
 
 static void
@@ -2585,16 +2637,20 @@ gdk_quartz_window_set_decorations (GdkWindow       *window,
 
   impl = GDK_WINDOW_IMPL_QUARTZ (window->impl);
 
-  if (decorations == 0 || GDK_WINDOW_TYPE (window) == GDK_WINDOW_TEMP ||
+  if (GDK_WINDOW_TYPE (window) == GDK_WINDOW_TEMP ||
       impl->type_hint == GDK_WINDOW_TYPE_HINT_SPLASHSCREEN )
     {
-      new_mask = NSBorderlessWindowMask;
+      new_mask = GDK_QUARTZ_BORDERLESS_WINDOW;
+    }
+  else if (decorations == 0) {
+      new_mask = GDK_QUARTZ_BORDERLESS_WINDOW | GDK_QUARTZ_MINIATURIZABLE_WINDOW;
     }
   else
     {
       /* FIXME: Honor other GDK_DECOR_* flags. */
-      new_mask = (NSTitledWindowMask | NSClosableWindowMask |
-                    NSMiniaturizableWindowMask | NSResizableWindowMask);
+      new_mask = (GDK_QUARTZ_TITLED_WINDOW | GDK_QUARTZ_CLOSABLE_WINDOW |
+                  GDK_QUARTZ_MINIATURIZABLE_WINDOW |
+                  GDK_QUARTZ_RESIZABLE_WINDOW);
     }
 
   GDK_QUARTZ_ALLOC_POOL;
@@ -2612,14 +2668,14 @@ gdk_quartz_window_set_decorations (GdkWindow       *window,
       /* Properly update the size of the window when the titlebar is
        * added or removed.
        */
-      if (old_mask == NSBorderlessWindowMask &&
-          new_mask != NSBorderlessWindowMask)
+      if (old_mask == GDK_QUARTZ_BORDERLESS_WINDOW &&
+          new_mask != GDK_QUARTZ_BORDERLESS_WINDOW)
         {
           rect = [NSWindow frameRectForContentRect:rect styleMask:new_mask];
 
         }
-      else if (old_mask != NSBorderlessWindowMask &&
-               new_mask == NSBorderlessWindowMask)
+      else if (old_mask != GDK_QUARTZ_BORDERLESS_WINDOW &&
+               new_mask == GDK_QUARTZ_BORDERLESS_WINDOW)
         {
           rect = [NSWindow contentRectForFrameRect:rect styleMask:old_mask];
         }
@@ -2635,13 +2691,14 @@ gdk_quartz_window_set_decorations (GdkWindow       *window,
 
           [(id<CanSetStyleMask>)impl->toplevel setStyleMask:new_mask];
 
-          /* It appears that unsetting and then resetting NSTitledWindowMask
-           * does not reset the title in the title bar as might be expected.
+          /* It appears that unsetting and then resetting
+           * GDK_QUARTZ_TITLED_WINDOW does not reset the title in the
+           * title bar as might be expected.
            *
            * In theory we only need to set this if new_mask includes
-           * NSTitledWindowMask. This behaved extremely oddly when
+           * GDK_QUARTZ_TITLED_WINDOW. This behaved extremely oddly when
            * conditionalized upon that and since it has no side effects (i.e.
-           * if NSTitledWindowMask is not requested, the title will not be
+           * if GDK_QUARTZ_TITLED_WINDOW is not requested, the title will not be
            * displayed) just do it unconditionally. We also must null check
            * 'title' before setting it to avoid crashing.
            */
@@ -2673,8 +2730,10 @@ gdk_quartz_window_set_decorations (GdkWindow       *window,
           [impl->toplevel setContentView:old_view];
         }
 
-      if (new_mask == NSBorderlessWindowMask)
-        [impl->toplevel setContentSize:rect.size];
+      if (new_mask == GDK_QUARTZ_BORDERLESS_WINDOW)
+        {
+          [impl->toplevel setContentSize:rect.size];
+        }
       else
         [impl->toplevel setFrame:rect display:YES];
 
@@ -2705,7 +2764,7 @@ gdk_quartz_window_get_decorations (GdkWindow       *window,
   if (decorations)
     {
       /* Borderless is 0, so we can't check it as a bit being set. */
-      if ([impl->toplevel styleMask] == NSBorderlessWindowMask)
+      if ([impl->toplevel styleMask] == GDK_QUARTZ_BORDERLESS_WINDOW)
         {
           *decorations = 0;
         }

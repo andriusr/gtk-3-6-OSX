@@ -106,7 +106,6 @@ struct _GdkRootWindowImplQuartzClass
 
 GType _gdk_root_window_impl_quartz_get_type (void);
 
-
 G_END_DECLS
 
 #endif /* __GDK_WINDOW_QUARTZ_H__ */
