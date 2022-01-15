@@ -1537,7 +1537,7 @@ gdk_event_translate (GdkEvent *event,
                 GdkEvent *emulated_event;
 
                 emulated_event = gdk_event_new (GDK_SCROLL);
-                gdk_event_set_pointer_emulated (emulated_event, TRUE);
+                _gdk_event_set_pointer_emulated (emulated_event, TRUE);
                 fill_scroll_event (window, emulated_event, nsevent,
                                    x, y, x_root, y_root,
                                    dx, dy, direction);
