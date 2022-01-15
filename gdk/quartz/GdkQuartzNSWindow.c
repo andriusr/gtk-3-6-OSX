@@ -430,8 +430,8 @@
   newOrigin.y = currentLocation.y - initialMoveLocation.y;
 
   /* Clamp vertical position to below the menu bar. */
-  if (newOrigin.y + windowFrame.size.height - impl->shadow_top > screenFrame.origin.y + screenFrame.size.height)
-    newOrigin.y = screenFrame.origin.y + screenFrame.size.height - windowFrame.size.height + impl->shadow_top;
+  if (newOrigin.y + windowFrame.size.height > screenFrame.origin.y + screenFrame.size.height)
+    newOrigin.y = screenFrame.origin.y + screenFrame.size.height - windowFrame.size.height;
 
   [self setFrameOrigin:newOrigin];
 
@@ -810,7 +810,7 @@ typedef enum
    * client side shadow right up to the screen's menu bar. */
   rect = [super constrainFrameRect:frameRect toScreen:screen];
   if (frameRect.origin.y > rect.origin.y)
-    rect.origin.y = MIN (frameRect.origin.y, rect.origin.y + impl->shadow_top);
+    rect.origin.y = MIN (frameRect.origin.y, rect.origin.y);
 
   return rect;
 }
