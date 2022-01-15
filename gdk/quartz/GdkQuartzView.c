@@ -24,6 +24,8 @@
 #include "gdkprivate-quartz.h"
 #include "gdkquartz.h"
 
+int cnt=0;
+
 @implementation GdkQuartzView
 
 -(id)initWithFrame: (NSRect)frameRect
@@ -641,7 +643,7 @@
 
   [self getRectsBeingDrawn: &drawn_rects count: &count];
   region = cairo_region_create ();
-  printf("drawRect %f, %f on %lx\n", rect.size.height, rect.size.width);
+  printf("drawRect %f, %f on %i\n", rect.size.height, rect.size.width, cnt++);
   for (i = 0; i < count; i++)
     {
       gdk_rect.x = drawn_rects[i].origin.x;
