@@ -55,6 +55,7 @@
 #include "gdkquartzkeys.h"
 #include "gdkkeysprivate.h"
 #include "gdkkeysyms.h"
+#include "gdkkeys-quartz.h"
 
 #define NUM_KEYCODES 128
 #define KEYVALS_PER_KEYCODE 4
@@ -124,15 +125,15 @@ const static struct {
   guint keyval;
   unsigned int modmask; /* So we can tell when a mod key is pressed/released */
 } modifier_keys[] = {
-  {  54, GDK_KEY_Meta_R,    NSCommandKeyMask },
-  {  55, GDK_KEY_Meta_L,    NSCommandKeyMask },
-  {  56, GDK_KEY_Shift_L,   NSShiftKeyMask },
-  {  57, GDK_KEY_Caps_Lock, NSAlphaShiftKeyMask },
-  {  58, GDK_KEY_Alt_L,     NSAlternateKeyMask },
-  {  59, GDK_KEY_Control_L, NSControlKeyMask },
-  {  60, GDK_KEY_Shift_R,   NSShiftKeyMask },
-  {  61, GDK_KEY_Alt_R,     NSAlternateKeyMask },
-  {  62, GDK_KEY_Control_R, NSControlKeyMask }
+  {  54, GDK_KEY_Meta_R,    GDK_QUARTZ_COMMAND_KEY_MASK },
+  {  55, GDK_KEY_Meta_L,    GDK_QUARTZ_COMMAND_KEY_MASK },
+  {  56, GDK_KEY_Shift_L,   GDK_QUARTZ_SHIFT_KEY_MASK },
+  {  57, GDK_KEY_Caps_Lock, GDK_QUARTZ_ALPHA_SHIFT_KEY_MASK },
+  {  58, GDK_KEY_Alt_L,     GDK_QUARTZ_ALTERNATE_KEY_MASK },
+  {  59, GDK_KEY_Control_L, GDK_QUARTZ_CONTROL_KEY_MASK },
+  {  60, GDK_KEY_Shift_R,   GDK_QUARTZ_SHIFT_KEY_MASK },
+  {  61, GDK_KEY_Alt_R,     GDK_QUARTZ_ALTERNATE_KEY_MASK },
+  {  62, GDK_KEY_Control_R, GDK_QUARTZ_CONTROL_KEY_MASK }
 };
 
 const static struct {
@@ -524,6 +525,13 @@ gdk_quartz_keymap_get_num_lock_state (GdkKeymap *keymap)
 }
 
 static gboolean
+gdk_quartz_keymap_get_scroll_lock_state (GdkKeymap *keymap)
+{
+  /* FIXME: Implement this. */
+  return FALSE;
+}
+
+static gboolean
 gdk_quartz_keymap_get_entries_for_keyval (GdkKeymap     *keymap,
                                           guint          keyval,
                                           GdkKeymapKey **keys,
@@ -754,6 +762,11 @@ gdk_quartz_keymap_get_modifier_mask (GdkKeymap         *keymap,
     case GDK_MODIFIER_INTENT_SHIFT_GROUP:
       return GDK_MOD1_MASK;
 
+    case GDK_MODIFIER_INTENT_DEFAULT_MOD_MASK:
+      return (GDK_SHIFT_MASK   | GDK_CONTROL_MASK | GDK_MOD1_MASK    |
+	      GDK_MOD2_MASK    | GDK_SUPER_MASK   | GDK_HYPER_MASK   |
+	      GDK_META_MASK);
+
     default:
       g_return_val_if_reached (0);
     }
@@ -982,11 +995,11 @@ _gdk_quartz_keys_event_type (NSEvent *event)
   
   switch ([event type])
     {
-    case NSKeyDown:
+    case GDK_QUARTZ_KEY_DOWN:
       return GDK_KEY_PRESS;
-    case NSKeyUp:
+    case GDK_QUARTZ_KEY_UP:
       return GDK_KEY_RELEASE;
-    case NSFlagsChanged:
+    case GDK_QUARTZ_FLAGS_CHANGED:
       break;
     default:
       g_assert_not_reached ();
@@ -1072,6 +1085,7 @@ gdk_quartz_keymap_class_init (GdkQuartzKeymapClass *klass)
   keymap_class->have_bidi_layouts = gdk_quartz_keymap_have_bidi_layouts;
   keymap_class->get_caps_lock_state = gdk_quartz_keymap_get_caps_lock_state;
   keymap_class->get_num_lock_state = gdk_quartz_keymap_get_num_lock_state;
+  keymap_class->get_scroll_lock_state = gdk_quartz_keymap_get_scroll_lock_state;
   keymap_class->get_entries_for_keyval = gdk_quartz_keymap_get_entries_for_keyval;
   keymap_class->get_entries_for_keycode = gdk_quartz_keymap_get_entries_for_keycode;
   keymap_class->lookup_key = gdk_quartz_keymap_lookup_key;
