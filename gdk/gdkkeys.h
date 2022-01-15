@@ -109,6 +109,7 @@ PangoDirection gdk_keymap_get_direction            (GdkKeymap           *keymap)
 gboolean       gdk_keymap_have_bidi_layouts        (GdkKeymap           *keymap);
 gboolean       gdk_keymap_get_caps_lock_state      (GdkKeymap           *keymap);
 gboolean       gdk_keymap_get_num_lock_state       (GdkKeymap           *keymap);
+gboolean       gdk_keymap_get_scroll_lock_state    (GdkKeymap           *keymap);
 GDK_AVAILABLE_IN_3_4
 guint          gdk_keymap_get_modifier_state       (GdkKeymap           *keymap);
 void           gdk_keymap_add_virtual_modifiers    (GdkKeymap           *keymap,
