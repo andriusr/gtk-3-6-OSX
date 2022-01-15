@@ -31,8 +31,9 @@
   if ((self = [super initWithFrame: frameRect]))
     {
       markedRange = NSMakeRange (NSNotFound, 0);
-      selectedRange = NSMakeRange (NSNotFound, 0);
+      selectedRange = NSMakeRange (0, 0);
     }
+  [self setValue: @(YES) forKey: @"postsFrameChangedNotifications"];
 
   return self;
 }
@@ -640,14 +641,14 @@
 
   [self getRectsBeingDrawn: &drawn_rects count: &count];
   region = cairo_region_create ();
-
+  printf("drawRect %f, %f on %lx\n", rect.size.height, rect.size.width);
   for (i = 0; i < count; i++)
     {
       gdk_rect.x = drawn_rects[i].origin.x;
       gdk_rect.y = drawn_rects[i].origin.y;
       gdk_rect.width = drawn_rects[i].size.width;
       gdk_rect.height = drawn_rects[i].size.height;
-
+		printf("Adding rect %d, %d at %d, %d\n", gdk_rect.height, gdk_rect.width, gdk_rect.x, gdk_rect.y);
       cairo_region_union_rectangle (region, &gdk_rect);
     }
 
