@@ -35,6 +35,7 @@
 #include "gdkquartzdisplay.h"
 #include "gdkprivate-quartz.h"
 #include "gdkquartzdevicemanager-core.h"
+#include "gdkkeys-quartz.h"
 
 #define GRIP_WIDTH 15
 #define GRIP_HEIGHT 15
