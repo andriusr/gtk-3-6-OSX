@@ -688,7 +688,7 @@ find_toplevel_for_keyboard_event (NSEvent *nsevent)
     {
       GdkDeviceGrabInfo *grab;
       GdkDevice *device = l->data;
-
+		printf("find_toplevel_for_keyboard_event, data=%p,\n", l->data);
       if (gdk_device_get_source(device) != GDK_SOURCE_KEYBOARD)
         continue;
 
@@ -1530,6 +1530,21 @@ gdk_event_translate (GdkEvent *event,
 
         if (dx != 0.0 || dy != 0.0)
           {
+#ifdef AVAILABLE_MAC_OS_X_VERSION_10_7_AND_LATER
+	    if (gdk_quartz_osx_version() >= GDK_OSX_LION &&
+		[nsevent hasPreciseScrollingDeltas])
+              {
+                GdkEvent *emulated_event;
+
+                emulated_event = gdk_event_new (GDK_SCROLL);
+                gdk_event_set_pointer_emulated (emulated_event, TRUE);
+                fill_scroll_event (window, emulated_event, nsevent,
+                                   x, y, x_root, y_root,
+                                   dx, dy, direction);
+                append_event (emulated_event, TRUE);
+              }
+            else
+#endif
               fill_scroll_event (window, event, nsevent,
                                  x, y, x_root, y_root,
                                  dx, dy, direction);
