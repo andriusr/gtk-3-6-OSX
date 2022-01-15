@@ -76,7 +76,7 @@ gdk_quartz_display_init_input (GdkDisplay *display)
   for (l = list; l; l = l->next)
     {
       GdkDevice *device = l->data;
-
+		printf("gdk_quartz_display_init_input, data=%p,\n", l->data);
       if (gdk_device_get_source (device) == GDK_SOURCE_KEYBOARD)
         continue;
 
@@ -93,7 +93,7 @@ gdk_quartz_display_init_input (GdkDisplay *display)
   for (l = list; l; l = l->next)
     {
       GdkDevice *device = l->data;
-
+		printf("gdk_quartz_display_init_input, master-data=%p,\n", l->data);
       if (gdk_device_get_source (device) != GDK_SOURCE_MOUSE)
         continue;
 
