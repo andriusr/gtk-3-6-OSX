@@ -513,10 +513,10 @@ _gdk_quartz_window_process_updates_recurse (GdkWindow *window,
           /* In theory, we could skip the flush disabling, since we only
            * have one NSView.
            */
-          if (nswindow && ![nswindow isFlushWindowDisabled]) 
+          if (nswindow) 
             {
               [nswindow retain];
-              [nswindow disableFlushWindow];
+//              [nswindow disableFlushWindow];
               update_nswindows = g_slist_prepend (update_nswindows, nswindow);
             }
         }
@@ -550,7 +550,7 @@ _gdk_quartz_display_before_process_all_updates (GdkDisplay *display)
 		}
   printf("Disabling screen updates: %s \n", buf);
 
-  NSDisableScreenUpdates ();
+ // NSDisableScreenUpdates ();
 }
 
 void
@@ -569,8 +569,8 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
 
       _gdk_quartz_window_flush (NULL); //If pass NULL, this function does nothing
 
-      [nswindow enableFlushWindow];
-      [nswindow flushWindow];
+ //     [nswindow enableFlushWindow];
+//      [nswindow flushWindow];
       [nswindow release];
 
       tmp_list = tmp_list->next;
@@ -592,7 +592,7 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
 		}
   printf("Enabling screen updates: %s\n", buf);
   
-  NSEnableScreenUpdates ();
+ // NSEnableScreenUpdates ();
 }
 
 static void
