@@ -5122,7 +5122,7 @@ gtk_text_view_paint (GtkWidget      *widget,
       g_assert_not_reached ();
     }
   
-#if 1
+#if 0
   printf ("painting %d,%d  %d x %d\n",
           area->x, area->y,
           area->width, area->height);

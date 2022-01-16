@@ -838,7 +838,11 @@ gtk_text_layout_draw (GtkTextLayout *layout,
 
   if (!gdk_cairo_get_clip_rectangle (cr, &clip))
     return;
-
+#if 1
+  printf ("text_layout_draw x=%d, y=%d  width=%d, height=%d\n",
+          clip.x, clip.y,
+          clip.width, clip.height);
+#endif
   context = gtk_widget_get_style_context (widget);
 
   line_list = gtk_text_layout_get_lines (layout, clip.y, clip.y + clip.height, &offset_y);
