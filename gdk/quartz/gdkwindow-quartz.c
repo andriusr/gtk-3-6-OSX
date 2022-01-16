@@ -565,11 +565,12 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
     {
       NSWindow *nswindow = tmp_list->data;
 
-      [[nswindow contentView] displayIfNeeded];
+ //     [[nswindow contentView] displayIfNeeded];
+      [[nswindow contentView] display];
 
       _gdk_quartz_window_flush (NULL); //If pass NULL, this function does nothing
 
- //     [nswindow enableFlushWindow];
+//      [nswindow enableFlushWindow];
 //      [nswindow flushWindow];
       [nswindow release];
 
