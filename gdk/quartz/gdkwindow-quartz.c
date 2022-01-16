@@ -532,6 +532,17 @@ void
 _gdk_quartz_display_before_process_all_updates (GdkDisplay *display)
 {
   in_process_all_updates = TRUE;
+   struct timeval tv;
+   	struct tm tm;
+   char fmt[16], buf[32];
+   	memset(&tm, '\0', sizeof(struct tm));
+   	memset(buf, '\0',  32);
+  gettimeofday (&tv, NULL);
+  if((gmtime_r(&tv.tv_sec, &tm)) != 0) {
+			strftime(fmt, sizeof(fmt), "%H:%M:%S", &tm);
+			snprintf(buf, sizeof(buf), "%s:%03u", fmt, (unsigned int)tv.tv_usec);
+		}
+  printf("Disabling screen updates: %s", buf);
 
   NSDisableScreenUpdates ();
 }
@@ -550,7 +561,7 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
 
       [[nswindow contentView] displayIfNeeded];
 
-      _gdk_quartz_window_flush (NULL);
+      _gdk_quartz_window_flush (NULL); //If pass NULL, this function does nothing
 
       [nswindow enableFlushWindow];
       [nswindow flushWindow];
@@ -562,7 +573,17 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
   g_slist_free (old_update_nswindows);
 
   in_process_all_updates = FALSE;
-
+   struct timeval tv;
+   	struct tm tm;
+   char fmt[16], buf[32];
+   	memset(&tm, '\0', sizeof(struct tm));
+   	memset(buf, '\0',  32);
+  gettimeofday (&tv, NULL);
+  if((gmtime_r(&tv.tv_sec, &tm)) != 0) {
+			strftime(fmt, sizeof(fmt), "%H:%M:%S", &tm);
+			snprintf(buf, sizeof(buf), "%s:%03u", fmt, (unsigned int)tv.tv_usec);
+		}
+  printf("Enabling screen updates: %s", buf);
   NSEnableScreenUpdates ();
 }
 
