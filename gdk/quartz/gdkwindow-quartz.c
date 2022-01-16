@@ -479,9 +479,14 @@ gdk_quartz_window_set_needs_display_in_region (GdkWindow    *window,
   for (i = 0; i < n_rects; i++)
     {
       cairo_rectangle_int_t rect;
-      cairo_region_get_rectangle (region, i, &rect);
+      cairo_region_get_rectangle (region, i, &rect); 
+#if 1
+      printf ("needs redraw in region: x=%d, y=%d  width=%d, height=%d\n",
+          rect.x, rect.y,
+          rect.width, rect.height);
+#endif
       [impl->view setNeedsDisplayInRect:NSMakeRect (rect.x, rect.y,
-                                                    rect.width, rect.height)];
+                                                    rect.width, rect.height)]; //Invalidate rectangles that needs to be redrawn
     }
 }
 
@@ -532,17 +537,18 @@ void
 _gdk_quartz_display_before_process_all_updates (GdkDisplay *display)
 {
   in_process_all_updates = TRUE;
-   struct timeval tv;
-   	struct tm tm;
-   char fmt[16], buf[32];
-   	memset(&tm, '\0', sizeof(struct tm));
-   	memset(buf, '\0',  32);
+  
+  struct timeval tv;
+  struct tm tm;
+  char fmt[16], buf[32];
+  memset(&tm, '\0', sizeof(struct tm));
+  memset(buf, '\0',  32);
   gettimeofday (&tv, NULL);
   if((gmtime_r(&tv.tv_sec, &tm)) != 0) {
 			strftime(fmt, sizeof(fmt), "%H:%M:%S", &tm);
 			snprintf(buf, sizeof(buf), "%s:%03u", fmt, (unsigned int)tv.tv_usec);
 		}
-  printf("Disabling screen updates: %s", buf);
+  printf("Disabling screen updates: %s \n", buf);
 
   NSDisableScreenUpdates ();
 }
@@ -573,17 +579,19 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
   g_slist_free (old_update_nswindows);
 
   in_process_all_updates = FALSE;
-   struct timeval tv;
-   	struct tm tm;
-   char fmt[16], buf[32];
-   	memset(&tm, '\0', sizeof(struct tm));
-   	memset(buf, '\0',  32);
+  
+  struct timeval tv;
+  struct tm tm;
+  char fmt[16], buf[32];
+  memset(&tm, '\0', sizeof(struct tm));
+  memset(buf, '\0',  32);
   gettimeofday (&tv, NULL);
   if((gmtime_r(&tv.tv_sec, &tm)) != 0) {
 			strftime(fmt, sizeof(fmt), "%H:%M:%S", &tm);
 			snprintf(buf, sizeof(buf), "%s:%03u", fmt, (unsigned int)tv.tv_usec);
 		}
-  printf("Enabling screen updates: %s", buf);
+  printf("Enabling screen updates: %s\n", buf);
+  
   NSEnableScreenUpdates ();
 }
 
