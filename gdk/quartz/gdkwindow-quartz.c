@@ -564,9 +564,9 @@ _gdk_quartz_display_after_process_all_updates (GdkDisplay *display)
   while (tmp_list)
     {
       NSWindow *nswindow = tmp_list->data;
-
- //     [[nswindow contentView] displayIfNeeded];
-      [[nswindow contentView] display];
+      
+      [[nswindow contentView] needsDisplay:YES];
+      [[nswindow contentView] displayIfNeeded];
 
       _gdk_quartz_window_flush (NULL); //If pass NULL, this function does nothing
 
