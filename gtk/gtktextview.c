@@ -5177,6 +5177,23 @@ gtk_text_view_draw (GtkWidget *widget,
       
       tmp_list = tmp_list->next;
     }
+   GdkWindow *toplevel;
+
+   toplevel = gdk_window_get_effective_toplevel (window);
+   if (toplevel && WINDOW_IS_TOPLEVEL (toplevel))
+   {
+       GdkWindowImplQuartz *toplevel_impl;
+       NSWindow *nswindow;
+
+       toplevel_impl = (GdkWindowImplQuartz *)toplevel->impl;
+       nswindow = toplevel_impl->toplevel; 
+        if (nswindow) 
+            {
+          [nswindow enableFlushWindow];
+          [nswindow flushWindow];
+       }
+    }
+   
   
   return FALSE;
 }
