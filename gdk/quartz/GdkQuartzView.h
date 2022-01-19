@@ -40,6 +40,7 @@
   BOOL needsInvalidateShadow;
   NSRange markedRange;
   NSRange selectedRange;
+  NSMutableArray *rectsNeedDisplay;
 }
 
 - (void)setGdkWindow: (GdkWindow *)window;

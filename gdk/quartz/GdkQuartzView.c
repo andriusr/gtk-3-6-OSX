@@ -34,6 +34,8 @@ int cnt=0;
     {
       markedRange = NSMakeRange (NSNotFound, 0);
       selectedRange = NSMakeRange (0, 0);
+      rectsNeedDisplay = [NSMutableArray arrayWithCapacity:10];
+      [rectsNeedDisplay retain];
     }
   [self setValue: @(YES) forKey: @"postsFrameChangedNotifications"];
 
@@ -562,6 +564,7 @@ int cnt=0;
     {
       [self removeTrackingRect: trackingRect];
       trackingRect = 0;
+      [rectsNeedDisplay release];
     }
 
   [super dealloc];
@@ -597,13 +600,35 @@ int cnt=0;
     gdk_screen_get_rgba_visual (_gdk_screen);
 }
 
+- (void) setNeedsDisplayInRect: (NSRect)invalidRect
+{
+  NSValue *rectValue = [NSValue valueWithRect: invalidRect];
+  [rectsNeedDisplay addObject: rectValue];
+  [super setNeedsDisplayInRect: invalidRect];
+}
+
+- (void) getRectsBeingDrawn: (cairo_region_t*) region
+{
+  NSInteger count = [rectsNeedDisplay count];
+  for (int i = 0; i < count; i++)
+    {
+      GdkRectangle gdk_rect;
+      NSRect rect;
+      [rectsNeedDisplay[i] getValue:&rect];
+      gdk_rect.x = rect.origin.x;
+      gdk_rect.y = rect.origin.y;
+      gdk_rect.width = rect.size.width;
+      gdk_rect.height = rect.size.height;
+      printf("drawRect height=%f, width=%f on %i\n", rect.size.height, rect.size.width, cnt++);
+      cairo_region_union_rectangle (region, &gdk_rect);
+    }
+
+  [rectsNeedDisplay removeAllObjects];
+}
+
 -(void)drawRect: (NSRect)rect
 {
-  GdkRectangle gdk_rect;
   GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (gdk_window->impl);
-  const NSRect *drawn_rects;
-  NSInteger count;
-  int i;
   cairo_region_t *region;
 
   if (GDK_WINDOW_DESTROYED (gdk_window))
@@ -641,18 +666,8 @@ int cnt=0;
       impl->needs_display_region = NULL;
     }
 
-  [self getRectsBeingDrawn: &drawn_rects count: &count];
   region = cairo_region_create ();
-  printf("drawRect %f, %f on %i\n", rect.size.height, rect.size.width, cnt++);
-  for (i = 0; i < count; i++)
-    {
-      gdk_rect.x = drawn_rects[i].origin.x;
-      gdk_rect.y = drawn_rects[i].origin.y;
-      gdk_rect.width = drawn_rects[i].size.width;
-      gdk_rect.height = drawn_rects[i].size.height;
-		printf("Adding rect %d, %d at %d, %d\n", gdk_rect.height, gdk_rect.width, gdk_rect.x, gdk_rect.y);
-      cairo_region_union_rectangle (region, &gdk_rect);
-    }
+  [self getRectsBeingDrawn: region];
 
   impl->in_paint_rect_count++;
   _gdk_window_process_updates_recurse (gdk_window, region);

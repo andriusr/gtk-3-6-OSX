@@ -1035,7 +1035,6 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 			                                        backing:NSBackingStoreBuffered
 			                                          defer:NO
                                                                   screen:screen];
-
         if (type_hint != GDK_WINDOW_TYPE_HINT_NORMAL)
           impl->toplevel.excludedFromWindowsMenu = true;
 
@@ -1062,6 +1061,7 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
                                       selector: @selector (windowDidResize:)
                                       name: @"NSViewFrameDidChangeNotification"
                                       object: impl->view];
+    printf("Create view %lx for toplevel\n", impl->view);
 	[impl->view release];
       }
       break;
@@ -1084,6 +1084,7 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
 	    /* GdkWindows should be hidden by default */
 	    [impl->view setHidden:YES];
 	    [parent_impl->view addSubview:impl->view];
+	    printf("Create view %lx for child\n", impl->view);
 	    [impl->view release];
 	  }
       }
