@@ -27,9 +27,6 @@
 
 #include <string.h>
 
-#include "gdk/gdk.h"
-#include "gtkquartz.h"
-#include "gdk/quartz/gdkquartz.h"
 #include "gdk/quartz/gdkwindow-quartz.h"
 
 #define WINDOW_IS_TOPLEVEL(window)		     \
