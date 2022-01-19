@@ -27,6 +27,8 @@
 
 #include <string.h>
 
+#include "gdk/gdk.h"
+
 #define GTK_TEXT_USE_INTERNAL_UNSUPPORTED_API
 #include "gtkbindings.h"
 #include "gtkdnd.h"
