@@ -1,0 +1,134 @@
+From b7a73db64118a3ad7cb3ef6d3ab94a61c65ee023 Mon Sep 17 00:00:00 2001
+From: John Ralls <jralls@ceridwen.us>
+Date: Sun, 9 Jan 2022 16:47:12 -0800
+Subject: [PATCH] Store rectangles needing redraw and pass to cairo.
+
+Since macOS has stopped tracking rectangles needing redraw and always
+wants to redraw the whole view.
+---
+ gdk/quartz/GdkQuartzView.c    | 45 +++++++++++++++++++++++------------
+ gdk/quartz/GdkQuartzView.h    |  1 +
+ gdk/quartz/gdkwindow-quartz.c |  2 ++
+ 3 files changed, 33 insertions(+), 15 deletions(-)
+
+diff --git a/gdk/quartz/GdkQuartzView.c b/gdk/quartz/GdkQuartzView.c
+index c20c5de83a..84de03fe80 100644
+--- a/gdk/quartz/GdkQuartzView.c
++++ b/gdk/quartz/GdkQuartzView.c
+@@ -33,6 +33,8 @@
+     {
+       markedRange = NSMakeRange (NSNotFound, 0);
+       selectedRange = NSMakeRange (0, 0);
++      rectsNeedDisplay = [NSMutableArray arrayWithCapacity:10];
++      [rectsNeedDisplay retain];
+     }
+   [self setValue: @(YES) forKey: @"postsFrameChangedNotifications"];
+ 
+@@ -254,6 +256,7 @@
+     {
+       [self removeTrackingRect: trackingRect];
+       trackingRect = 0;
++      [rectsNeedDisplay release];
+     }
+ 
+   [super dealloc];
+@@ -289,6 +292,32 @@
+     gdk_screen_get_rgba_visual (_gdk_screen);
+ }
+ 
++- (void) setNeedsDisplayInRect: (NSRect)invalidRect
++{
++  NSValue *rectValue = [NSValue valueWithRect: invalidRect];
++  [rectsNeedDisplay addObject: rectValue];
++  [super setNeedsDisplayInRect: invalidRect];
++}
++
++- (void) getRectsBeingDrawn: (cairo_region_t*) region
++{
++  NSInteger count = [rectsNeedDisplay count];
++  for (int i = 0; i < count; i++)
++    {
++      GdkRectangle gdk_rect;
++      NSRect rect;
++      [rectsNeedDisplay[i] getValue:&rect];
++      gdk_rect.x = rect.origin.x;
++      gdk_rect.y = rect.origin.y;
++      gdk_rect.width = rect.size.width;
++      gdk_rect.height = rect.size.height;
++
++      cairo_region_union_rectangle (region, &gdk_rect);
++    }
++
++  [rectsNeedDisplay removeAllObjects];
++}
++
+ - (void) viewWillDraw
+ {
+   /* MacOS 11 (Big Sur) has added a new, dynamic "accent" as default.
+@@ -309,11 +338,7 @@
+ 
+ -(void)drawRect: (NSRect)rect
+ {
+-  GdkRectangle gdk_rect;
+   GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (gdk_window->impl);
+-  const NSRect *drawn_rects;
+-  NSInteger count;
+-  int i;
+   cairo_region_t *region;
+ 
+   if (GDK_WINDOW_DESTROYED (gdk_window))
+@@ -351,18 +376,8 @@
+       impl->needs_display_region = NULL;
+     }
+ 
+-  [self getRectsBeingDrawn: &drawn_rects count: &count];
+   region = cairo_region_create ();
+-
+-  for (i = 0; i < count; i++)
+-    {
+-      gdk_rect.x = drawn_rects[i].origin.x;
+-      gdk_rect.y = drawn_rects[i].origin.y;
+-      gdk_rect.width = drawn_rects[i].size.width;
+-      gdk_rect.height = drawn_rects[i].size.height;
+-
+-      cairo_region_union_rectangle (region, &gdk_rect);
+-    }
++  [self getRectsBeingDrawn: region];
+ 
+   impl->in_paint_rect_count++;
+   _gdk_window_process_updates_recurse (gdk_window, region);
+diff --git a/gdk/quartz/GdkQuartzView.h b/gdk/quartz/GdkQuartzView.h
+index da06a8bdce..a0231aec31 100644
+--- a/gdk/quartz/GdkQuartzView.h
++++ b/gdk/quartz/GdkQuartzView.h
+@@ -40,6 +40,7 @@
+   BOOL needsInvalidateShadow;
+   NSRange markedRange;
+   NSRange selectedRange;
++  NSMutableArray *rectsNeedDisplay;
+ }
+ 
+ - (void)setGdkWindow: (GdkWindow *)window;
+diff --git a/gdk/quartz/gdkwindow-quartz.c b/gdk/quartz/gdkwindow-quartz.c
+index aa85318e0b..874ad408ea 100644
+--- a/gdk/quartz/gdkwindow-quartz.c
++++ b/gdk/quartz/gdkwindow-quartz.c
+@@ -976,6 +976,7 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
+                                       selector: @selector (windowDidResize:)
+                                       name: @"NSViewFrameDidChangeNotification"
+                                       object: impl->view];
++        printf("Create view %lx for toplevel\n", impl->view);
+ 	[impl->view release];
+       }
+       break;
+@@ -998,6 +999,7 @@ _gdk_quartz_display_create_window_impl (GdkDisplay    *display,
+ 	    /* GdkWindows should be hidden by default */
+ 	    [impl->view setHidden:YES];
+ 	    [parent_impl->view addSubview:impl->view];
++            printf("Create view %lx for child\n", impl->view);
+ 	    [impl->view release];
+ 	  }
+       }
+-- 
+2.30.1 (Apple Git-130)
+
