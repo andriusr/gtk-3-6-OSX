@@ -30,12 +30,6 @@
 #include "gdk/gdk.h"
 #include "gtkquartz.h"
 #include "gdk/quartz/gdkquartz.h"
-#include "gdk/quartz/gdkwindow-quartz.h"
-
-#define WINDOW_IS_TOPLEVEL(window)		     \
-  (GDK_WINDOW_TYPE (window) != GDK_WINDOW_CHILD &&   \
-   GDK_WINDOW_TYPE (window) != GDK_WINDOW_FOREIGN && \
-   GDK_WINDOW_TYPE (window) != GDK_WINDOW_OFFSCREEN)
 
 #define GTK_TEXT_USE_INTERNAL_UNSUPPORTED_API
 #include "gtkbindings.h"
