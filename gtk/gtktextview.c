@@ -5137,6 +5137,9 @@ gtk_text_view_paint (GtkWidget      *widget,
                         NULL);
 
   cairo_restore (cr);
+  
+//  gdk_window_invalidate_rect (priv->text_window->bin_window, NULL, FALSE);
+  gdk_window_flush (priv->text_window->bin_window);
 }
 
 static gboolean
