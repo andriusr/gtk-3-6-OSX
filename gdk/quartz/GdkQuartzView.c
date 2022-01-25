@@ -619,7 +619,7 @@ int cnt=0;
       gdk_rect.y = rect.origin.y;
       gdk_rect.width = rect.size.width;
       gdk_rect.height = rect.size.height;
-      printf("drawRect height=%f, width=%f on %i\n", rect.size.height, rect.size.width, cnt++);
+      printf("getRectsBeingDrawn height=%i, width=%i, x=%i, y=%i\n", rect.size.height, rect.size.width, rect.origin.x, gdk_rect.y);
       cairo_region_union_rectangle (region, &gdk_rect);
     }
 
@@ -668,7 +668,10 @@ int cnt=0;
 
   region = cairo_region_create ();
   [self getRectsBeingDrawn: region];
-
+  
+  cairo_rectangle_int_t ex_rect;
+  cairo_region_get_extents (region, &ex_rect);  
+  printf("drawRect: height=%i, width=%i, x=%i, y=%i on %i\n", ex_rect.height, ex_rect.width, ex_rect.x, ex_rect.y, cnt++);
   impl->in_paint_rect_count++;
   _gdk_window_process_updates_recurse (gdk_window, region);
   impl->in_paint_rect_count--;

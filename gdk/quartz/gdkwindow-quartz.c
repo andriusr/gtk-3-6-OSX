@@ -402,7 +402,7 @@ gdk_window_impl_quartz_begin_paint_region (GdkPaintable    *paintable,
   GdkWindowImplQuartz *impl = GDK_WINDOW_IMPL_QUARTZ (paintable);
   cairo_region_t *clipped_and_offset_region;
   cairo_t *cr;
-
+  printf("gdk_window_impl_quartz_begin_paint_region: painting %lx.\n", paintable);
   clipped_and_offset_region = cairo_region_copy (region);
 
   cairo_region_intersect (clipped_and_offset_region,

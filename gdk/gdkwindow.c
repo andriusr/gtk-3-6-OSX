@@ -3869,7 +3869,7 @@ _gdk_window_process_updates_recurse (GdkWindow *window,
       if (window->event_mask & GDK_EXPOSURE_MASK)
 	{
 	  GdkEvent event;
-
+  	  printf("_gdk_window_process_updates_recurse: emitting EXPOSE event.\n");
 	  event.expose.type = GDK_EXPOSE;
 	  event.expose.window = g_object_ref (window);
 	  event.expose.send_event = FALSE;
