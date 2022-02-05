@@ -615,11 +615,11 @@ int cnt=0;
       GdkRectangle gdk_rect;
       NSRect rect;
       [rectsNeedDisplay[i] getValue:&rect];
-      gdk_rect.x = rect.origin.x;
-      gdk_rect.y = rect.origin.y;
-      gdk_rect.width = rect.size.width;
-      gdk_rect.height = rect.size.height;
-      printf("getRectsBeingDrawn height=%i, width=%i, x=%i, y=%i\n", rect.size.height, rect.size.width, rect.origin.x, gdk_rect.y);
+      gdk_rect.x = (int)rect.origin.x;
+      gdk_rect.y = (int)rect.origin.y;
+      gdk_rect.width = (int)rect.size.width;
+      gdk_rect.height = (int)rect.size.height;
+      printf("getRectsBeingDrawn height=%i, width=%i, x=%i, y=%i\n", gdk_rect.height, gdk_rect.width, gdk_rect.x, gdk_rect.y);
       cairo_region_union_rectangle (region, &gdk_rect);
     }
 
