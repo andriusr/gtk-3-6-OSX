@@ -439,6 +439,7 @@ gdk_window_impl_quartz_begin_paint_region (GdkPaintable    *paintable,
     cairo_set_source_rgba (cr, 0, 0, 0, 0);
 
   /* Can use cairo_paint() here, we clipped above */
+  cairo_set_operator (cr, CAIRO_OPERATOR_SOURCE);
   cairo_paint (cr);
 
   cairo_destroy (cr);
